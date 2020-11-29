@@ -1,0 +1,7 @@
+data/
+tfrecords/
+infer_result/
+
+# Python
+*.pyc
+*.pyo
