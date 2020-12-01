@@ -99,8 +99,6 @@ class TrtTrafficCamNet(object):
         Returns: list of list tuple: each element is a two list tuple (x, y) representing the corners of a bb
         """
 
-        
-
         model_h = 544
         model_w = 960
         stride = 16
@@ -110,12 +108,7 @@ class TrtTrafficCamNet(object):
         grid_w = int(model_w / stride)
         grid_size = grid_h * grid_w
 
-        print(grid_h)
-        print(grid_w)
-        print(grid_size)
-
-        outputs = outputs.reshape(2, 16320)
-        min_confidence = 0.5
+        min_confidence = 0.3
 
         self.grid_centers_w = []
         self.grid_centers_h = []
@@ -183,20 +176,9 @@ class TrtTrafficCamNet(object):
         
         self.stream.synchronize()
 
-
-        output = self.host_outputs[0]
-        print(output.shape)
-        #for x in output:
-        #    print(str(x),end=' ')
-
-        # print(len(output))
-        # for i in range (0, 50,5):
-        #     print(output[i])
-        #     print(output[i+1])
-        #     print(output[i+2])
-        #     print(output[i+3])
-        #     print(output[i+4])
-        #     print()
+        print(self.host_outputs[0].shape)
+        print(self.host_outputs[1].shape)
+        output = [self.host_outputs[0], self.host_outputs[1]]
 
         self.classes = [0,1,2,3]
         return self.postprocess(output, conf_th, self.classes)

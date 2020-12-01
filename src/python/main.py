@@ -44,12 +44,7 @@ def detect_one(img, trt_ssd, conf_th, vis):
 
     toc = time.clock()
     curr_fps = (toc - tic)
-    #print("boxes: "+str(boxes))
-    #print("boxes: ", len(boxes))
-    #print("clss: "+str(clss))
-    #print("clss: ", len(clss))
-    #print("confs: "+str(confs))
-    #print("confs: ", len(confs))
+
     img = vis.draw_bboxes(img, boxes, confs, clss)
     cv2.imwrite("result.jpg",img)        
     print("time: "+str(curr_fps)+"(sec)")
@@ -87,8 +82,16 @@ def main_one():
     traCamNet = TrtTrafficCamNet(model_name, INPUT_HW)
     vis = BBoxVisualization(cls_dict)
     print("start detection!")
-    detect_one(img, traCamNet, conf_th=0.35, vis=vis)
-    cv2.destroyAllWindows()
+
+    #detect_one(img, traCamNet, conf_th=0.35, vis=vis)
+    result = traCamNet.detect(img)
+    print(result)
+    img = cv2.resize(img, INPUT_HW)
+    for box in result:
+        cv2.rectangle(img, (box[0][0], box[0][1]), (box[1][0], box[1][1]), [100, 100, 100, 100], 2)
+
+    cv2.imwrite("1-test.jpg", img)
+    #cv2.destroyAllWindows()
     print("finish!")
 
 def main_loop():   
