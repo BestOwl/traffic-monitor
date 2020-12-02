@@ -4,6 +4,7 @@ import numpy as np
 import ctypes
 import tensorrt as trt
 import pycuda.driver as cuda
+import TrafficObject
 
 #加载推理引擎
 class TrtTrafficCamNet(object):
@@ -88,7 +89,14 @@ class TrtTrafficCamNet(object):
         o4 = (o4 + self.grid_centers_h[y]) * self.box_norm
         return o1, o2, o3, o4
 
-    def postprocess(self, outputs, conf_th, analysis_classes):
+
+    # def DBScanCluster(self, boxes, confs, clss):
+    #     newBoxes, newConfs, newClss = boxes, confs, clss
+
+    #     for box, conf, clss in zip(newBoxes, newConfs, newClss):
+            
+
+    def postprocess(self, outputs, conf_th, analysis_classes, originImgShape):
         """
         Postprocesses TRT DetectNet inference output
         Args:
@@ -108,8 +116,6 @@ class TrtTrafficCamNet(object):
         grid_w = int(model_w / stride)
         grid_size = grid_h * grid_w
 
-        min_confidence = 0.3
-
         self.grid_centers_w = []
         self.grid_centers_h = []
 
@@ -123,7 +129,7 @@ class TrtTrafficCamNet(object):
             value = (i * stride + 0.5) / self.box_norm
             self.grid_centers_w.append(value)
 
-        bbs = []
+        boxes, confs, clss = [], [], []
         for c in range(len(self.classes)):
             if c not in analysis_classes:
                 continue
@@ -133,25 +139,32 @@ class TrtTrafficCamNet(object):
             x2_idx = y1_idx + grid_size
             y2_idx = x2_idx + grid_size
 
-            boxes = outputs[0]
+            bbox = outputs[0]
             for h in range(grid_h):
                 for w in range(grid_w):
                     i = w + h * grid_w
-                    if outputs[1][c * grid_size + i] >= min_confidence:
-                        o1 = boxes[x1_idx + w + h * grid_w]
-                        o2 = boxes[y1_idx + w + h * grid_w]
-                        o3 = boxes[x2_idx + w + h * grid_w]
-                        o4 = boxes[y2_idx + w + h * grid_w]
+                    confidence = outputs[1][c * grid_size + i]
+                    if confidence >= conf_th:
+                        o1 = bbox[x1_idx + w + h * grid_w]
+                        o2 = bbox[y1_idx + w + h * grid_w]
+                        o3 = bbox[x2_idx + w + h * grid_w]
+                        o4 = bbox[y2_idx + w + h * grid_w]
 
                         o1, o2, o3, o4 = self.applyBoxNorm(
                             o1, o2, o3, o4, w, h)
 
-                        xmin = int(o1)
-                        ymin = int(o2)
-                        xmax = int(o3)
-                        ymax = int(o4)
-                        bbs.append([(xmin, ymin), (xmax, ymax)])
-        return bbs
+                        # rescale to the origin image coordinates
+                        x_scale = originImgShape[1] / model_w
+                        y_scale = originImgShape[0] / model_h
+                        xmin = int(o1 * x_scale)
+                        ymin = int(o2 * y_scale)
+                        xmax = int(o3 * x_scale)
+                        ymax = int(o4 * y_scale)
+
+                        boxes.append((xmin, ymin, xmax, ymax))
+                        confs.append(confidence)
+                        clss.append(c)
+        return boxes, confs, clss
         
     #利用生成的可执行上下文执行推理
     def detect(self, img, conf_th=0.3):
@@ -176,9 +189,7 @@ class TrtTrafficCamNet(object):
         
         self.stream.synchronize()
 
-        print(self.host_outputs[0].shape)
-        print(self.host_outputs[1].shape)
         output = [self.host_outputs[0], self.host_outputs[1]]
 
         self.classes = [0,1,2,3]
-        return self.postprocess(output, conf_th, self.classes)
+        return self.postprocess(output, conf_th, self.classes, img.shape)

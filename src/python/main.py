@@ -34,19 +34,17 @@ def detect_video(video, trt_ssd, conf_th, vis,result_file_name):
         else:
             break
 
-def detect_one(img, trt_ssd, conf_th, vis):
+def detect_one(img, trt, conf_th, vis):
     full_scrn = False
     tic = time.clock()
     ##开始检测，并将结果写到result.jpg中
-    boxes, confs, clss = trt_ssd.detect(img, conf_th)
-
-    #print(clss)
+    boxes, confs, clss = trt.detect(img, conf_th)
 
     toc = time.clock()
     curr_fps = (toc - tic)
 
     img = vis.draw_bboxes(img, boxes, confs, clss)
-    cv2.imwrite("result.jpg",img)        
+    cv2.imwrite("result.jpg", img)        
     print("time: "+str(curr_fps)+"(sec)")
 
 def detect_dir(dir, trt_ssd, conf_th, vis):
@@ -74,24 +72,17 @@ def detect_dir(dir, trt_ssd, conf_th, vis):
                     new_file.write(str(boxes[count][3])+" \n")
 
 def main_one():    
-    filename = "1.jpg"
+    filename = "../../1.jpg"
     result_file_name = str(filename)
     img = cv2.imread(filename)
     cls_dict = get_cls_dict()
-    model_name ="TrafficCamNet/trafficnet_int8.engine"
+    model_name ="../../TrafficCamNet/trafficnet_int8.engine"
     traCamNet = TrtTrafficCamNet(model_name, INPUT_HW)
     vis = BBoxVisualization(cls_dict)
     print("start detection!")
 
-    #detect_one(img, traCamNet, conf_th=0.35, vis=vis)
-    result = traCamNet.detect(img)
-    print(result)
-    img = cv2.resize(img, INPUT_HW)
-    for box in result:
-        cv2.rectangle(img, (box[0][0], box[0][1]), (box[1][0], box[1][1]), [100, 100, 100, 100], 2)
+    detect_one(img, traCamNet, conf_th=0.30, vis=vis)
 
-    cv2.imwrite("1-test.jpg", img)
-    #cv2.destroyAllWindows()
     print("finish!")
 
 def main_loop():   
