@@ -47,30 +47,6 @@ def detect_one(img, trt, conf_th, vis):
     cv2.imwrite("result.jpg", img)        
     print("time: "+str(curr_fps)+"(sec)")
 
-def detect_dir(dir, trt_ssd, conf_th, vis):
-    dirs = os.listdir(dir)
-    print(dir)
-    for i in dirs:
-        if os.path.splitext(i)[1] == ".png":
-            full_scrn = False
-            #print("val/images/"+str(i))
-            img = cv2.imread("val/images/"+str(i))
-            boxes, confs, clss = trt_ssd.detect(img, conf_th)
-            new_file = open("mAP/input/detection-results/"+os.path.splitext(i)[0]+".txt",'w+')
-            if len(clss)>0:
-                for count in range(0, len(clss)):
-                    if clss[count] == 0:
-                        new_file.write("mandatory ")
-                    elif clss[count] == 1:
-                        new_file.write("prohibitory ")
-                    elif clss[count] == 2:
-                        new_file.write("warning ")
-                    new_file.write(str(confs[count])+" ")
-                    new_file.write(str(boxes[count][0])+" ")
-                    new_file.write(str(boxes[count][1])+" ")
-                    new_file.write(str(boxes[count][2])+" ")
-                    new_file.write(str(boxes[count][3])+" \n")
-
 def main_one():    
     filename = "../../1.jpg"
     result_file_name = str(filename)
@@ -115,6 +91,4 @@ def create_detect_result():
     print("finish!")
 
 INPUT_HW = (960, 544)
-
-
 main_one()
