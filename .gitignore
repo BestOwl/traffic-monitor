@@ -3,6 +3,8 @@ tfrecords/
 infer_result/
 build/
 .vscode/
+.idea/
+cmake-build-debug/
 
 # Python
 *.pyc
