@@ -8,7 +8,7 @@ from utils.visualization import BBoxVisualization
 from TrtTrafficCamNet import *
 from TrafficClass import get_cls_dict
 
-def detect_video(video, trt_ssd, conf_th, vis,result_file_name):
+def detect_video(video, trt, conf_th, vis,result_file_name):
     full_scrn = False
     fps = 0.0
     tic = time.time()
@@ -18,12 +18,12 @@ def detect_video(video, trt_ssd, conf_th, vis,result_file_name):
     #print(str(frame_width)+str(frame_height))
     ##定义输入编码
     fourcc = cv2.VideoWriter_fourcc('M', 'P', '4', 'V')
-    videoWriter = cv2.VideoWriter('result.AVI', fourcc, fps, (frame_width,frame_height))
+    videoWriter = cv2.VideoWriter('result.mp4', fourcc, fps, (frame_width,frame_height))
     ##开始循环检测，并将结果写到result.mp4中
     while True:
         ret,img = video.read()
         if img is not None:
-            boxes, confs, clss = trt_ssd.detect(img, conf_th)
+            boxes, confs, clss = trt.detect(img, conf_th)
             img = vis.draw_bboxes(img, boxes, confs, clss)
             videoWriter.write(img)
             toc = time.time()
@@ -52,7 +52,7 @@ def main_one():
     result_file_name = str(filename)
     img = cv2.imread(filename)
     cls_dict = get_cls_dict()
-    model_name ="../../TrafficCamNet/trafficnet_int8.engine"
+    model_name ="../../TrafficCamNet/trafficnet_int8_m1b1.engine"
     traCamNet = TrtTrafficCamNet(model_name, INPUT_HW)
     vis = BBoxVisualization(cls_dict)
     print("start detection!")
@@ -62,15 +62,15 @@ def main_one():
     print("finish!")
 
 def main_loop():   
-    filename = "videoplayback.mp4"
+    filename = "../../test-video2.mp4"
     result_file_name = str(filename)
     video = cv2.VideoCapture(filename)
-    cls_dict = get_cls_dict("ssd_resnet18_traffic".split('_')[-1])
-    model_name ="ssd_resnet18_traffic"
-    trt_ssd = TrtSSD(model_name, INPUT_HW)
+    cls_dict = get_cls_dict()
+    model_name ="../../TrafficCamNet/trafficnet_int8_m1b1.engine"
+    trt = TrtTrafficCamNet(model_name, INPUT_HW)
     vis = BBoxVisualization(cls_dict)
     print("start detection!")
-    detect_video(video, trt_ssd, conf_th=0.3, vis=vis, result_file_name=result_file_name)
+    detect_video(video, trt, conf_th=0.3, vis=vis, result_file_name=result_file_name)
     video.release()
     cv2.destroyAllWindows()
     print("\nfinish!")
@@ -91,4 +91,5 @@ def create_detect_result():
     print("finish!")
 
 INPUT_HW = (960, 544)
-main_one()
+# main_one()
+main_loop()
