@@ -4,7 +4,7 @@ import numpy as np
 import ctypes
 import tensorrt as trt
 import pycuda.driver as cuda
-import TrafficObject
+import TrafficClass
 
 #加载推理引擎
 class TrtTrafficCamNet(object):
