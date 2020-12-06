@@ -9,3 +9,7 @@ cmake-build-debug/
 # Python
 *.pyc
 *.pyo
+src/python/result*
+*.flv
+*.mp4
+*.engine
