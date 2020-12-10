@@ -13,3 +13,4 @@ src/python/result*
 *.flv
 *.mp4
 *.engine
+.ipynb_checkpoints/
