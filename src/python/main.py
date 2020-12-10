@@ -2,13 +2,14 @@ import os
 import sys
 import time
 import argparse
+import numpy as np
 from utils.display import open_window, set_display, show_fps
 from utils.visualization import BBoxVisualization
 
 from TrtTrafficCamNet import *
 from TrafficClass import get_cls_dict
 
-def detect_video(video, trt, conf_th, vis,result_file_name):
+def detect_video(video, trt, conf_th, batch_size, vis, result_file_name):
     full_scrn = False
     fps = 0.0
     tic = time.time()
@@ -20,19 +21,46 @@ def detect_video(video, trt, conf_th, vis,result_file_name):
     fourcc = cv2.VideoWriter_fourcc('M', 'P', '4', 'V')
     videoWriter = cv2.VideoWriter('result.mp4', fourcc, fps, (frame_width,frame_height))
     ##开始循环检测，并将结果写到result.mp4中
+    input_shape = trt.host_inputs_shape[0]
+    shape_per_bbox = int(trt.host_outputs_shape[0] / batch_size)
+    shape_per_conf = int(trt.host_outputs_shape[1] / batch_size)
     while True:
-        ret,img = video.read()
-        if img is not None:
-            boxes, confs, clss = trt.detect(img, conf_th)
-            img = vis.draw_bboxes(img, boxes, confs, clss)
-            videoWriter.write(img)
-            toc = time.time()
-            curr_fps = 1.0 / (toc - tic)
-            fps = curr_fps if fps == 0.0 else (fps*0.95 + curr_fps*0.05)
-            tic = toc
-            print("\rfps: "+str(fps),end="")
-        else:
+        frames = []
+        framesProcessed = []
+        frameCount = 0
+        for i in range(batch_size):
+            ret, img = video.read()
+            if img is not None:
+                frames.append(img)
+                framesProcessed.append(trt.preprocess(img))  
+                frameCount = frameCount + 1
+                # print("Preprocessed 1 frame")              
+            else:
+                break
+
+        input = np.asarray(framesProcessed).ravel()
+        if (frameCount == 0):
             break
+        if (frameCount < 32):
+            input = np.zeros_like(input,  dtype=np.float32, shape=input_shape)
+
+        # print("Push 32 frames to detect")
+
+        # tic = time.time()
+        output = trt.detect(input, frameCount, conf_th)
+        for i in range(frameCount):
+            boxes, confs, clss = trt.postprocess([output[0][i * shape_per_bbox:(i + 1) * shape_per_bbox], output[1][i * shape_per_conf:(i + 1) * shape_per_conf]],
+                                                    conf_th, INPUT_HW)
+            frames[i] = vis.draw_bboxes(frames[i], boxes, confs, clss)
+            videoWriter.write(frames[i])
+        # toc = time.time()
+        # print(toc - tic)
+            
+        toc = time.time()
+        curr_fps = 32.0 / (toc - tic)
+        fps = curr_fps if fps == 0.0 else (fps*0.95 + curr_fps*0.05)
+        tic = toc
+        print("\rfps: "+str(fps),end="")
 
 def detect_one(img, trt, conf_th, vis):
     full_scrn = False
@@ -57,20 +85,20 @@ def main_one():
     vis = BBoxVisualization(cls_dict)
     print("start detection!")
 
-    detect_one(img, traCamNet, conf_th=0.30, vis=vis)
+    detect_one(img, traCamNet, conf_th=0.30, batch_size=1, vis=vis)
 
     print("finish!")
 
 def main_loop():   
-    filename = "../../test-video2.mp4"
+    filename = "../../test-video3.mp4"
     result_file_name = str(filename)
     video = cv2.VideoCapture(filename)
     cls_dict = get_cls_dict()
-    model_name ="../../TrafficCamNet/trafficnet_int8_m1b1.engine"
+    model_name ="../../TrafficCamNet/trafficnet_int8.engine"
     trt = TrtTrafficCamNet(model_name, INPUT_HW)
     vis = BBoxVisualization(cls_dict)
     print("start detection!")
-    detect_video(video, trt, conf_th=0.3, vis=vis, result_file_name=result_file_name)
+    detect_video(video, trt, conf_th=0.3, batch_size=32, vis=vis, result_file_name=result_file_name)
     video.release()
     cv2.destroyAllWindows()
     print("\nfinish!")

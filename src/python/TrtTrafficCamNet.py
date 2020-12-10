@@ -25,27 +25,31 @@ class TrtTrafficCamNet(object):
 
             self.bindings.append(int(cuda_mem))
             if self.engine.binding_is_input(binding):
+                self.host_inputs_shape.append(size)
                 self.host_inputs.append(host_mem)
                 self.cuda_inputs.append(cuda_mem)
             else:
+                self.host_outputs_shape.append(size)
                 self.host_outputs.append(host_mem)
                 self.cuda_outputs.append(cuda_mem)
         return self.engine.create_execution_context()
 
     #初始化引擎
-    def __init__(self, model, input_shape, output_layout=7):
+    def __init__(self, model, input_shape):
         """Initialize TensorRT plugins, engine and conetxt."""
         self.model = model
         self.input_shape = input_shape
-        self.output_layout = output_layout
         self.trt_logger = trt.Logger(trt.Logger.INFO)
         self.engine = self._load_engine()
 
+        self.host_inputs_shape = []
+        self.host_outputs_shape = []
         self.host_inputs = []
         self.cuda_inputs = []
         self.host_outputs = []
         self.cuda_outputs = []
         self.bindings = []
+        self.classes = [0,1,2,3]
         self.stream = cuda.Stream()
         self.context = self._create_context()
 
@@ -96,13 +100,12 @@ class TrtTrafficCamNet(object):
     #     for box, conf, clss in zip(newBoxes, newConfs, newClss):
             
 
-    def postprocess(self, outputs, conf_th, analysis_classes, originImgShape):
+    def postprocess(self, outputs, conf_th, originImgShape):
         """
         Postprocesses TRT DetectNet inference output
         Args:
             outputs (list of float): inference output
             min_confidence (float): min confidence to accept detection
-            analysis_classes (list of int): indices of the classes to consider
 
         Returns: list of list tuple: each element is a two list tuple (x, y) representing the corners of a bb
         """
@@ -119,7 +122,6 @@ class TrtTrafficCamNet(object):
         self.grid_centers_w = []
         self.grid_centers_h = []
 
-        self.classes = [0,1,2,3]
 
         for i in range(grid_h):
             value = (i * stride + 0.5) / self.box_norm
@@ -130,9 +132,7 @@ class TrtTrafficCamNet(object):
             self.grid_centers_w.append(value)
 
         boxes, confs, clss = [], [], []
-        for c in range(len(self.classes)):
-            if c not in analysis_classes:
-                continue
+        for c in range(4): # four class
 
             x1_idx = (c * 4 * grid_size)
             y1_idx = x1_idx + grid_size
@@ -167,17 +167,16 @@ class TrtTrafficCamNet(object):
         return boxes, confs, clss
         
     #利用生成的可执行上下文执行推理
-    def detect(self, img, conf_th=0.3):
+    def detect(self, input, batch_size, conf_th=0.3):
         """Detect objects in the input image."""
-        img_resized = self.preprocess(img)
-        np.copyto(self.host_inputs[0], img_resized.ravel())
+        np.copyto(self.host_inputs[0], input)
         #将处理好的图片从CPU内存中复制到GPU显存
         cuda.memcpy_htod_async(
             self.cuda_inputs[0], self.host_inputs[0], self.stream)
             
         #开始执行推理任务
         self.context.execute_async(
-            batch_size=1,
+            batch_size=batch_size,
             bindings=self.bindings,
             stream_handle=self.stream.handle)
 
@@ -190,6 +189,5 @@ class TrtTrafficCamNet(object):
         self.stream.synchronize()
 
         output = [self.host_outputs[0], self.host_outputs[1]]
-
-        self.classes = [0,1,2,3]
-        return self.postprocess(output, conf_th, self.classes, img.shape)
+        return output
+        # return self.postprocess(output, conf_th, self.classes, input.shape)
