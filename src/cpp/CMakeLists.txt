@@ -1,5 +1,4 @@
 find_package(OpenCV REQUIRED)
-find_package(NumCpp 2.3.1 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # CUDA Toolkit
@@ -50,9 +49,5 @@ if(NOT TENSORRT_FOUND)
     message(ERROR "Cannot find TensorRT library.")
 endif()
 
-# Boost
-find_package(Boost REQUIRED)
-
-
 add_executable(TrtTrafficDetect TrtTrafficDetect.cpp DetectNetEngine.cpp DetectNetEngine.h)
-target_link_libraries(TrtTrafficDetect ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} )
+target_link_libraries(TrtTrafficDetect ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY})
