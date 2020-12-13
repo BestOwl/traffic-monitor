@@ -13,6 +13,7 @@
 #include "DetectNetEngine.h"
 
 using namespace std;
+using namespace chrono;
 using namespace cv;
 
 void PrintHelp();
@@ -72,6 +73,7 @@ int DetectPicture(string inputPath, string modelPath)
 
     DetectNetEngine inferer(modelPath);
 
+    auto start = system_clock::now();
     auto objects = inferer.DoInfer(img, 0.3);
     for (auto obj : objects)
     {
@@ -79,6 +81,9 @@ int DetectPicture(string inputPath, string modelPath)
         Point bottomRight(obj.bbox.xMax, obj.bbox.yMax);
         rectangle(img, topLeft, bottomRight, cv::Scalar(0, 255, 0));
     }
+    auto end = system_clock::now();
+    auto duration = duration_cast<nanoseconds>(end - start);
+    cout << "time: " << double(duration.count()) * nanoseconds::period::num / nanoseconds::period::den << " (sec)" << endl;
 
     objects.clear();
     imwrite("result.jpg", img);
