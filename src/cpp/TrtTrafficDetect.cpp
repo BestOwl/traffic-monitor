@@ -17,8 +17,8 @@ using namespace cv;
 
 void PrintHelp();
 int PrintBadArguments();
-int DetectPicture(string inputPath, string modelPath, int modelWidth, int modelHeight);
-int DetectVideo(string inputPath, string modelPath, int modelWidth, int modelHeight);
+int DetectPicture(string inputPath, string modelPath);
+int DetectVideo(string inputPath, string modelPath);
 
 /**
  * Run trt inference
@@ -28,38 +28,30 @@ int DetectVideo(string inputPath, string modelPath, int modelWidth, int modelHei
  *  1. task_flag - 0 indicates picture; 1 indicates video
  *  2. input file path
  *  3. model TRT engine file path
- *  4. model width
- *  5. model height
  */
 int main(int argc, char* argv[])
 {
-    if (argc != 6)
+    if (argc != 4)
     {
-        if (argc != 2 || strcmp("--help", argv[1]) == 0)
+        if (argc == 2)
         {
-            cout << "Bad arguments!" << endl;
+            if (strcmp("--help", argv[1]) == 0)
+            {
+                PrintHelp();
+                return 0;
+            }
         }
-        PrintHelp();
-    }
 
-    int modelWidth = 0;
-    int modelHeight = 0;
-    try
-    {
-        modelWidth = stoi(argv[4], nullptr);
-        modelHeight = stoi(argv[5], nullptr);
-    }
-    catch (std::invalid_argument &e) {
         return PrintBadArguments();
     }
 
     if (strcmp("0", argv[1]) == 0)
     {
-        return DetectPicture(argv[2], argv[3], modelWidth, modelHeight);
+        return DetectPicture(argv[2], argv[3]);
     }
     else if(strcmp("1", argv[1]) == 0)
     {
-        return DetectVideo(argv[2], argv[3], modelWidth, modelHeight);
+        return DetectVideo(argv[2], argv[3]);
     }
     else
     {
@@ -67,7 +59,7 @@ int main(int argc, char* argv[])
     }
 }
 
-int DetectPicture(string inputPath, string modelPath, int modelWidth, int modelHeight)
+int DetectPicture(string inputPath, string modelPath)
 {
     string image_path = samples::findFile(inputPath);
     Mat img = imread(image_path, IMREAD_COLOR);
@@ -78,7 +70,7 @@ int DetectPicture(string inputPath, string modelPath, int modelWidth, int modelH
         return 1;
     }
 
-    DetectNetEngine inferer(modelPath, modelWidth, modelHeight);
+    DetectNetEngine inferer(modelPath);
 
     auto objects = inferer.DoInfer(img, 0.3);
     for (auto obj : objects)
@@ -94,7 +86,7 @@ int DetectPicture(string inputPath, string modelPath, int modelWidth, int modelH
     return 0;
 }
 
-int DetectVideo(string inputPath, string modelPath, int modelWidth, int modelHeight)
+int DetectVideo(string inputPath, string modelPath)
 {
     return 0;
 }

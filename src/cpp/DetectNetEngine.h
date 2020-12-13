@@ -34,10 +34,10 @@ struct DetectedObject {
 
 class DetectNetEngine {
 public:
-    int Stride;
-    float BoxNorm;
+    int __Stride;
+    float __BoxNorm;
 
-    DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight, int stride = 16, float boxNorm = 35.0);
+    DetectNetEngine(const string& modelPath);
     ~DetectNetEngine();
     vector<DetectedObject> DoInfer(const Mat& image, float confidenceThreshold);
 

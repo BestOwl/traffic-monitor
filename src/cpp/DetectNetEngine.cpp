@@ -5,6 +5,12 @@
 
 #include "DetectNetEngine.h"
 
+#define __DetectionClassNum 4
+#define __Stride 16
+#define __BoxNorm 35.0
+#define __ModelWidth 960
+#define __ModelHeight 544
+
 class Logger : public ILogger {
 public:
     explicit Logger(bool verbose)
@@ -20,19 +26,15 @@ private:
     bool _verbose{false};
 };
 
-#define __DetectionClassNum 4
-
-DetectNetEngine::DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight, int stride, float boxNorm)
+DetectNetEngine::DetectNetEngine(const string& modelPath)
 {
     _modelPath = modelPath;
-    _modelWidth = modelWidth;
-    _modelHeight = modelHeight;
-    _modelSize = Size(modelWidth, modelHeight);
-    Stride = stride;
-    BoxNorm = boxNorm;
+    _modelWidth = __ModelWidth;
+    _modelHeight = __ModelHeight;
+    _modelSize = Size(_modelWidth, _modelHeight);
 
-    _gridH = _modelHeight / Stride;
-    _gridW = _modelWidth / Stride;
+    _gridH = _modelHeight / __Stride;
+    _gridW = _modelWidth / __Stride;
     _gridSize = _gridH * _gridW;
 
     Logger logger(true);
@@ -160,11 +162,11 @@ vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, flo
 
     for (int i = 0; i < _gridW; i++)
     {
-        gridCentersX[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
+        gridCentersX[i] = (float)(i * __Stride + 0.5) / (float) __BoxNorm;
     }
     for (int i = 0; i < _gridH; i++)
     {
-        gridCentersY[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
+        gridCentersY[i] = (float)(i * __Stride + 0.5) / (float) __BoxNorm;
     }
 
     for (int c = 0; c < __DetectionClassNum; c++)
@@ -188,12 +190,10 @@ vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, flo
 
                     float rectX1f, rectY1f, rectX2f, rectY2f;
 
-                    rectX1f = (outputX1[w + h * _gridW] - gridCentersX[w]) * -BoxNorm;
-                    rectY1f = (outputY1[w + h * _gridW] - gridCentersY[h]) * -BoxNorm;
-                    rectX2f = (outputX2[w + h * _gridW] + gridCentersX[w]) * BoxNorm;
-                    rectY2f = (outputY2[w + h * _gridW] + gridCentersY[h]) * BoxNorm;
-
-                    cout << rectX1f << ", " << rectY1f << ";  " << rectX2f << ", " << rectY2f << endl;
+                    rectX1f = (outputX1[w + h * _gridW] - gridCentersX[w]) * -__BoxNorm;
+                    rectY1f = (outputY1[w + h * _gridW] - gridCentersY[h]) * -__BoxNorm;
+                    rectX2f = (outputX2[w + h * _gridW] + gridCentersX[w]) * __BoxNorm;
+                    rectY2f = (outputY2[w + h * _gridW] + gridCentersY[h]) * __BoxNorm;
 
                     // rescale to the origin image coordinates
                     float x_scale = (float) originWidth / _modelWidth;
