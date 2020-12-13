@@ -19,15 +19,27 @@ using namespace std;
 using namespace cv;
 using namespace nvinfer1;
 
+struct BBoxCoordinate {
+    int xMin;
+    int yMin;
+    int xMax;
+    int yMax;
+};
+
+struct DetectedObject {
+    uint8_t classId;
+    BBoxCoordinate bbox;
+    float confidence;
+};
+
 class DetectNetEngine {
 public:
+    int Stride;
+    float BoxNorm;
 
-
-    DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight);
+    DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight, int stride = 16, float boxNorm = 35.0);
     ~DetectNetEngine();
-    Mat PreProcess(const Mat& img);
-    void PostProcess();
-    void DoInfer(const Mat& image, double confidenceThreshold);
+    vector<DetectedObject> DoInfer(const Mat& image, float confidenceThreshold);
 
 private:
     IRuntime *_runtime = nullptr;
@@ -39,9 +51,17 @@ private:
     int _modelWidth;
     int _modelHeight;
     cv::Size _modelSize;
+    int _gridH;
+    int _gridW;
+    int _gridSize;
 
-    vector<void*> buffers;
-    vector<void*> outputBuffers;
+    vector<void*> deviceBuffers;
+    vector<float*> hostOutputBuffers;
+    vector<size_t> buffersSize;
+    vector<size_t> buffersSizeBytes;
+
+    vector<Mat> PreProcess(const Mat& img);
+    vector<DetectedObject> PostProcess(float* bbox, float* cov, float confidenceThreshold, int originWidth, int originHeight);
 
     void LoadEngine(const string& path);
     void PrepareContext();

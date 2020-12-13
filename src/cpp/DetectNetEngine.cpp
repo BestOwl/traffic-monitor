@@ -4,7 +4,6 @@
 // Some code is adapted from https://github.com/NVIDIA/retinanet-examples/blob/master/csrc/engine.cpp
 
 #include "DetectNetEngine.h"
-#include "NumCpp.hpp"
 
 class Logger : public ILogger {
 public:
@@ -21,19 +20,30 @@ private:
     bool _verbose{false};
 };
 
-DetectNetEngine::DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight)
+#define __DetectionClassNum 4
+
+DetectNetEngine::DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight, int stride, float boxNorm)
 {
     _modelPath = modelPath;
     _modelWidth = modelWidth;
     _modelHeight = modelHeight;
     _modelSize = Size(modelWidth, modelHeight);
+    Stride = stride;
+    BoxNorm = boxNorm;
+
+    _gridH = _modelHeight / Stride;
+    _gridW = _modelWidth / Stride;
+    _gridSize = _gridH * _gridW;
 
     Logger logger(true);
     this->_runtime = createInferRuntime(logger);
     LoadEngine(modelPath);
 
-    buffers = vector<void*>();
-    outputBuffers = vector<void*>();
+    deviceBuffers = vector<void*>();
+    hostOutputBuffers = vector<float*>();
+    buffersSize = vector<size_t>();
+    buffersSizeBytes = vector<size_t>();
+
     PrepareContext();
 }
 
@@ -55,6 +65,18 @@ DetectNetEngine::~DetectNetEngine()
     {
         _runtime->destroy();
     }
+
+    for (auto p : hostOutputBuffers)
+    {
+        free(p);
+    }
+    hostOutputBuffers.clear();
+
+    for (auto p : deviceBuffers)
+    {
+        cudaFree(p);
+    }
+    deviceBuffers.clear();
 }
 
 void DetectNetEngine::LoadEngine(const string &path) {
@@ -73,25 +95,40 @@ void DetectNetEngine::LoadEngine(const string &path) {
 }
 
 // Adapted from https://github.com/AlexeyAB/yolo2_light/issues/25
-Mat DetectNetEngine::PreProcess(const Mat& img) {
-    Mat imgProcessed;
-    Mat mfloat;
-    Mat gpu_dst;
+vector<Mat> DetectNetEngine::PreProcess(const Mat& img) {
+    Mat imgResized;
+//    Mat imgRgb;
+//    Mat imgCHW;
+    Mat imgFloat;
 
-    resize(img, imgProcessed, _modelSize);
-    cvtColor(imgProcessed, imgProcessed, COLOR_BGR2RGB);
+    resize(img, imgResized, _modelSize);
+//    cvtColor(imgResized, imgRgb, COLOR_BGR2RGB);
+//    hwc_to_chw(imgResized, imgCHW);
 
-    imgProcessed.convertTo(imgProcessed, CV_32FC3, 1.0/255, 0); //uint8 -> float, divide by 255
+    imgResized.convertTo(imgFloat, CV_32FC3, 1.0/255, 0); //uint8 -> float, divide by 255
 
-    size_t width = mfloat.cols * mfloat.rows;
-    std::vector<Mat> input_channels {
-            Mat(mfloat.rows, mfloat.cols, CV_32F, gpu_dst.ptr()[0]),
-            Mat(mfloat.rows, mfloat.cols, CV_32F, gpu_dst.ptr()[width]),
-            Mat(mfloat.rows, mfloat.cols, CV_32F, gpu_dst.ptr()[width * 2])
-    };
+//    for (int i = 0; i < 10; i++)
+//    {
+//        cout << ((float*)imgFloat.data)[i] << endl;
+//    }
+    cout << "=======" << endl;
 
-    split(mfloat, input_channels); //HWC -> CHW
-    return gpu_dst;
+    Mat c;
+    Mat h;
+    Mat w;
+    extractChannel(imgFloat, c, 0);
+    extractChannel(imgFloat, h, 1);
+    extractChannel(imgFloat, w, 2);
+//    for (int i = 0; i < 10; i++)
+//    {
+//        cout << ((float*)c.data)[i] << endl;
+//    }
+    vector<Mat> ret;
+    ret.push_back(c);
+    ret.push_back(h);
+    ret.push_back(w);
+
+    return ret;
 }
 
 
@@ -108,30 +145,110 @@ void DetectNetEngine::PrepareContext() {
     for (int i = 0; i < bindings; i++)
     {
         Dims dim = _engine->getBindingDimensions(i);
-        size_t sz = maxBatchSize * dim.d[0] * dim.d[1] * dim.d[2] * sizeof(float);
-        void* buf;
-        cudaMalloc(&buf, sz);
+        size_t sz = maxBatchSize * dim.d[0] * dim.d[1] * dim.d[2];
+        void* deviceBuf;
+        cudaMalloc(&deviceBuf, sz * sizeof(float));
+
+        deviceBuffers.push_back(deviceBuf);
+        buffersSize.push_back(sz);
+        buffersSizeBytes.push_back(sz * sizeof(float));
 
         if (_engine->bindingIsInput(i))
         {
-            buffers.push_back(buf);
             cout << "input[" << i << "]: " << sz << endl;
         }
         else
         {
-            outputBuffers.push_back(buf);
+            float* hostBuf = (float*) malloc(sz * sizeof(float));
+            hostOutputBuffers.push_back(hostBuf);
+
             cout << "output[" << i << "]: " << sz << endl;
         }
     }
 }
 
-void DetectNetEngine::DoInfer(const Mat& image, double confidenceThreshold) {
+vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, float confidenceThreshold, int originWidth, int originHeight)
+{
+    std::vector<DetectedObject> objectList;
+
+    float gcCentersX[_gridW];
+    float gcCentersY[_gridH];
+
+    for (int i = 0; i < _gridW; i++)
+    {
+        gcCentersX[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
+    }
+    for (int i = 0; i < _gridH; i++)
+    {
+        gcCentersY[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
+    }
+
+    for (int c = 0; c < __DetectionClassNum; c++)
+    {
+        float *outputX1 = bbox + (c * 4 * _gridSize);
+        float *outputY1 = outputX1 + _gridSize;
+        float *outputX2 = outputY1 + _gridSize;
+        float *outputY2 = outputX2 + _gridSize;
+
+        for (int h = 0; h < _gridH; h++)
+        {
+            for (int w = 0; w < _gridW; w++)
+            {
+                int i = w + h * _gridW;
+                if (cov[c * _gridSize + i] >= confidenceThreshold)
+                {
+
+                    DetectedObject object;
+                    object.classId = c;
+                    object.confidence = cov[c * _gridSize + i];
+
+                    float rectX1f, rectY1f, rectX2f, rectY2f;
+
+                    rectX1f = (outputX1[w + h * _gridW] - gcCentersX[w]) * -BoxNorm;
+                    rectY1f = (outputY1[w + h * _gridW] - gcCentersY[h]) * -BoxNorm;
+                    rectX2f = (outputX2[w + h * _gridW] + gcCentersX[w]) * BoxNorm;
+                    rectY2f = (outputY2[w + h * _gridW] + gcCentersY[h]) * BoxNorm;
+
+                    cout << rectX1f << ", " << rectY1f << ";  " << rectX2f << ", " << rectY2f << endl;
+
+                    // rescale to the origin image coordinates
+                    float x_scale = (float) originWidth / _modelWidth;
+                    float y_scale = (float) originHeight / _modelHeight;
+                    BBoxCoordinate b = { };
+                    b.xMin = (int) rectX1f * x_scale;
+                    b.yMin = (int) rectY1f * y_scale;
+                    b.xMax = (int) rectX2f * x_scale;
+                    b.yMax = (int) rectY2f * y_scale;
+                    object.bbox = b;
+
+                    objectList.push_back(object);
+                }
+            }
+        }
+    }
+
+    return objectList;
+}
+
+vector<DetectedObject> DetectNetEngine::DoInfer(const Mat& image, float confidenceThreshold) {
     auto img = PreProcess(image);
 
-//    _context.get
-//    void* mem;
-//    cudaMallocHost(&mem, )
+    size_t per = buffersSizeBytes[0] / 3;
 
-//    cudaMemcpyAsync(buffers[inputIndex0], inputData, batch_size * INPUT_D * sizeof(float), cudaMemcpyHostToDevice, _stream);
+    cudaMemcpyAsync(deviceBuffers[0], img[0].data, per, cudaMemcpyHostToDevice, _stream);
+    cudaMemcpyAsync(deviceBuffers[0] + per, img[1].data, per, cudaMemcpyHostToDevice, _stream);
+    cudaMemcpyAsync(deviceBuffers[0] + per * 2, img[2].data, per, cudaMemcpyHostToDevice, _stream);
 
+    _context->enqueue(1, deviceBuffers.data(), _stream, nullptr);
+
+    cudaMemcpyAsync(hostOutputBuffers[0], deviceBuffers[1], buffersSizeBytes[1], cudaMemcpyDeviceToHost, _stream);
+    cudaMemcpyAsync(hostOutputBuffers[1], deviceBuffers[2], buffersSizeBytes[2], cudaMemcpyDeviceToHost, _stream);
+    cudaStreamSynchronize(_stream);
+
+//    for (int i = 0; i < buffersSize[1]; i++)
+//    {
+//        cout << hostOutputBuffers[0][i] << endl;
+//    }
+
+    return PostProcess(hostOutputBuffers[0], hostOutputBuffers[1], confidenceThreshold, image.cols, image.rows);
 }
