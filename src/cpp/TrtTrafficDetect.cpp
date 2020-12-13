@@ -78,11 +78,8 @@ int DetectPicture(string inputPath, string modelPath, int modelWidth, int modelH
         return 1;
     }
 
-    //imshow("Display window", img);
-    //int k = waitKey(0); // W
-
     DetectNetEngine inferer(modelPath, modelWidth, modelHeight);
-//    Mat processedImg = inferer.PreProcess(img);
+
     auto objects = inferer.DoInfer(img, 0.3);
     for (auto obj : objects)
     {
@@ -91,6 +88,7 @@ int DetectPicture(string inputPath, string modelPath, int modelWidth, int modelH
         rectangle(img, topLeft, bottomRight, cv::Scalar(0, 255, 0));
     }
 
+    objects.clear();
     imwrite("result.jpg", img);
 
     return 0;

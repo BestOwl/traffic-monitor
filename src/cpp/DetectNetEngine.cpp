@@ -94,45 +94,6 @@ void DetectNetEngine::LoadEngine(const string &path) {
     delete[] buffer;
 }
 
-// Adapted from https://github.com/AlexeyAB/yolo2_light/issues/25
-vector<Mat> DetectNetEngine::PreProcess(const Mat& img) {
-    Mat imgResized;
-//    Mat imgRgb;
-//    Mat imgCHW;
-    Mat imgFloat;
-
-    resize(img, imgResized, _modelSize);
-//    cvtColor(imgResized, imgRgb, COLOR_BGR2RGB);
-//    hwc_to_chw(imgResized, imgCHW);
-
-    imgResized.convertTo(imgFloat, CV_32FC3, 1.0/255, 0); //uint8 -> float, divide by 255
-
-//    for (int i = 0; i < 10; i++)
-//    {
-//        cout << ((float*)imgFloat.data)[i] << endl;
-//    }
-    cout << "=======" << endl;
-
-    Mat c;
-    Mat h;
-    Mat w;
-    extractChannel(imgFloat, c, 0);
-    extractChannel(imgFloat, h, 1);
-    extractChannel(imgFloat, w, 2);
-//    for (int i = 0; i < 10; i++)
-//    {
-//        cout << ((float*)c.data)[i] << endl;
-//    }
-    vector<Mat> ret;
-    ret.push_back(c);
-    ret.push_back(h);
-    ret.push_back(w);
-
-    return ret;
-}
-
-
-
 void DetectNetEngine::PrepareContext() {
     _context = _engine->createExecutionContext();
     _context->setOptimizationProfile(0);
@@ -167,20 +128,43 @@ void DetectNetEngine::PrepareContext() {
     }
 }
 
+// Adapted from https://github.com/AlexeyAB/yolo2_light/issues/25
+vector<Mat> DetectNetEngine::PreProcess(const Mat& img) {
+    Mat imgResized;
+    Mat imgFloat;
+
+    resize(img, imgResized, _modelSize);
+    imgResized.convertTo(imgFloat, CV_32FC3, 1.0/255, 0); //uint8 -> float, divide by 255
+
+    Mat c;
+    Mat h;
+    Mat w;
+    extractChannel(imgFloat, c, 0);
+    extractChannel(imgFloat, h, 1);
+    extractChannel(imgFloat, w, 2);
+
+    vector<Mat> ret;
+    ret.push_back(c);
+    ret.push_back(h);
+    ret.push_back(w);
+
+    return ret;
+}
+
 vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, float confidenceThreshold, int originWidth, int originHeight)
 {
     std::vector<DetectedObject> objectList;
 
-    float gcCentersX[_gridW];
-    float gcCentersY[_gridH];
+    float gridCentersX[_gridW];
+    float gridCentersY[_gridH];
 
     for (int i = 0; i < _gridW; i++)
     {
-        gcCentersX[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
+        gridCentersX[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
     }
     for (int i = 0; i < _gridH; i++)
     {
-        gcCentersY[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
+        gridCentersY[i] = (float)(i * Stride + 0.5) / (float) BoxNorm;
     }
 
     for (int c = 0; c < __DetectionClassNum; c++)
@@ -204,10 +188,10 @@ vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, flo
 
                     float rectX1f, rectY1f, rectX2f, rectY2f;
 
-                    rectX1f = (outputX1[w + h * _gridW] - gcCentersX[w]) * -BoxNorm;
-                    rectY1f = (outputY1[w + h * _gridW] - gcCentersY[h]) * -BoxNorm;
-                    rectX2f = (outputX2[w + h * _gridW] + gcCentersX[w]) * BoxNorm;
-                    rectY2f = (outputY2[w + h * _gridW] + gcCentersY[h]) * BoxNorm;
+                    rectX1f = (outputX1[w + h * _gridW] - gridCentersX[w]) * -BoxNorm;
+                    rectY1f = (outputY1[w + h * _gridW] - gridCentersY[h]) * -BoxNorm;
+                    rectX2f = (outputX2[w + h * _gridW] + gridCentersX[w]) * BoxNorm;
+                    rectY2f = (outputY2[w + h * _gridW] + gridCentersY[h]) * BoxNorm;
 
                     cout << rectX1f << ", " << rectY1f << ";  " << rectX2f << ", " << rectY2f << endl;
 
@@ -245,10 +229,6 @@ vector<DetectedObject> DetectNetEngine::DoInfer(const Mat& image, float confiden
     cudaMemcpyAsync(hostOutputBuffers[1], deviceBuffers[2], buffersSizeBytes[2], cudaMemcpyDeviceToHost, _stream);
     cudaStreamSynchronize(_stream);
 
-//    for (int i = 0; i < buffersSize[1]; i++)
-//    {
-//        cout << hostOutputBuffers[0][i] << endl;
-//    }
-
+    img.clear();
     return PostProcess(hostOutputBuffers[0], hostOutputBuffers[1], confidenceThreshold, image.cols, image.rows);
 }
