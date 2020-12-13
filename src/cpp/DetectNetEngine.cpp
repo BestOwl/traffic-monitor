@@ -4,22 +4,14 @@
 // Some code is adapted from https://github.com/NVIDIA/retinanet-examples/blob/master/csrc/engine.cpp
 
 #include "DetectNetEngine.h"
-#include "NumCpp.hpp"
+#include <opencv2/core.hpp>
 
-class Logger : public ILogger {
-public:
-    explicit Logger(bool verbose)
-            : _verbose(verbose) {
-    }
-
-    void log(Severity severity, const char *msg) override {
-        if (_verbose || (severity != Severity::kINFO) && (severity != Severity::kVERBOSE))
-            cout << msg << endl;
-    }
-
-private:
-    bool _verbose{false};
-};
+void Log(NvDsInferContextHandle handle,
+    unsigned int uniqueID, NvDsInferLogLevel logLevel, const char* logMessage,
+    void* userCtx)
+{
+    cout << logMessage << endl;
+}
 
 DetectNetEngine::DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight)
 {
@@ -28,13 +20,45 @@ DetectNetEngine::DetectNetEngine(const string& modelPath, int modelWidth, int mo
     _modelHeight = modelHeight;
     _modelSize = Size(modelWidth, modelHeight);
 
-    Logger logger(true);
-    this->_runtime = createInferRuntime(logger);
-    LoadEngine(modelPath);
+//    Logger logger(true);
+//    this->_runtime = createInferRuntime(logger);
+//    LoadEngine(modelPath);
+//
+//    buffers = vector<void*>();
+//    outputBuffers = vector<void*>();
+//    PrepareContext();
 
-    buffers = vector<void*>();
-    outputBuffers = vector<void*>();
-    PrepareContext();
+    NvDsInferContextInitParams param = { };
+    param.maxBatchSize = 1;
+    param.networkType = NvDsInferNetworkType_Detector;
+    param.networkMode = NvDsInferNetworkMode_FP32;
+    param.clusterMode = NVDSINFER_CLUSTER_DBSCAN;
+    param.uniqueID = 1;
+    param.outputBufferPoolSize = 2;
+    param.networkInputFormat = NvDsInferFormat_RGB;
+    param.numDetectedClasses = 4;
+    param.perClassDetectionParams = new NvDsInferDetectionParams[4];
+    param.
+
+    NvDsInferDetectionParams detectionParams = { };
+    detectionParams.preClusterThreshold = 0.3;
+    param.perClassDetectionParams[0] = detectionParams;
+    param.perClassDetectionParams[1] = detectionParams;
+    param.perClassDetectionParams[2] = detectionParams;
+    param.perClassDetectionParams[3] = detectionParams;
+
+    int pathLength = modelPath.length();
+    modelPath.copy(param.modelEngineFilePath, pathLength, 0);
+    param.modelEngineFilePath[pathLength] = '\0';
+
+    NvDsInferDimsCHW inferDims = { };
+    inferDims.c = 3;
+    inferDims.h = 544;
+    inferDims.w = 960;
+    param.inferInputDims = inferDims;
+
+    NvDsInferStatus status = NvDsInferContext_Create(&_inferContext, &param, nullptr, Log);
+    assert(status == NVDSINFER_SUCCESS);
 }
 
 DetectNetEngine::~DetectNetEngine()
@@ -54,6 +78,10 @@ DetectNetEngine::~DetectNetEngine()
     if (_runtime)
     {
         _runtime->destroy();
+    }
+    if (_inferContext)
+    {
+        _inferContext->destroy();
     }
 }
 
@@ -126,7 +154,7 @@ void DetectNetEngine::PrepareContext() {
 }
 
 void DetectNetEngine::DoInfer(const Mat& image, double confidenceThreshold) {
-    auto img = PreProcess(image);
+//     auto img = PreProcess(image);
 
 //    _context.get
 //    void* mem;
@@ -134,4 +162,44 @@ void DetectNetEngine::DoInfer(const Mat& image, double confidenceThreshold) {
 
 //    cudaMemcpyAsync(buffers[inputIndex0], inputData, batch_size * INPUT_D * sizeof(float), cudaMemcpyHostToDevice, _stream);
 
+    Mat img;
+    resize(image, img, _modelSize);
+
+//    NvDsInferNetworkInfo info;
+//    _inferContext->getNetworkInfo(&info);
+//    _inferContext->fillLayersInfo()
+
+    void* deviceMem;
+    int size = img.total() * img.elemSize();
+//    cout << size << endl;
+    cudaMalloc(&deviceMem, size);
+    cudaError_t result = cudaMemcpy(deviceMem, img.data, size, cudaMemcpyHostToDevice);
+
+    NvDsInferContextBatchInput input = { };
+    input.inputFormat = NvDsInferFormat_BGR;
+    input.numInputFrames = 1;
+    input.inputFrames = &deviceMem;
+//    input.returnInputFunc
+
+    _inferContext->queueInputBatch(input);
+
+    NvDsInferContextBatchOutput output;
+    NvDsInferStatus status = _inferContext->dequeueOutputBatch(output);
+
+//    void* hostOutputMem = malloc(32640);
+//    cudaMemcpy(hostOutputMem, output.outputDeviceBuffers[0], 32640, cudaMemcpyDeviceToHost);
+//    for (int i = 0; i < 32640; i++)
+//    {
+//        cout << ((int*) hostOutputMem)[i] << endl;
+//    }
+
+    cout << status << endl;
+
+    NvDsInferObject* objs = output.frames->detectionOutput.objects;
+    for (int i = 0; i < output.frames->detectionOutput.numObjects; i++)
+    {
+        cout << objs[i].label << ": (" << objs[i].left << ", " << objs[i].top << "  (" << objs[i].width << ", " << objs[i].height;
+    }
+
+    _inferContext->releaseBatchOutput(output);
 }

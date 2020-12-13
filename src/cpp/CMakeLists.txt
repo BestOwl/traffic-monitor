@@ -49,5 +49,26 @@ if(NOT TENSORRT_FOUND)
     message(ERROR "Cannot find TensorRT library.")
 endif()
 
+SET(DeepStreamSDK_Include_DIR "/opt/nvidia/deepstream/deepstream/sources/includes")
+MESSAGE(STATUS "${DeepStreamSDK_Include_Dir}")
+include_directories(${DeepStreamSDK_Include_DIR})
+
+#SET(NvDsInfer_Sources_DIR "/opt/nvidia/deepstream/deepstream/sources/libs/nvdsinfer")
+#SET(NvDsInfer_Sources
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_backend.cpp
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_backend.h
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_context_impl.cpp
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_context_impl.h
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_context_impl_capi.cpp
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_context_impl_output_parsing.cpp
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_conversion.h
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_func_utils.cpp
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_model_builder.cpp
+#        ${NvDsInfer_Sources_DIR}/nvdsinfer_model_builder.h)
+
+SET(DeepStreamSDK_Lib_DIR "/opt/nvidia/deepstream/deepstream/lib")
+SET(NvDsInfer_Libs
+        ${DeepStreamSDK_Lib_DIR}/libnvds_infer.so)
+
 add_executable(TrtTrafficDetect TrtTrafficDetect.cpp DetectNetEngine.cpp DetectNetEngine.h)
-target_link_libraries(TrtTrafficDetect ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY})
+target_link_libraries(TrtTrafficDetect ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} ${NvDsInfer_Libs})

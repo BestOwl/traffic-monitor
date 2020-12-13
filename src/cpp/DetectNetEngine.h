@@ -14,6 +14,7 @@
 #include <opencv2/highgui.hpp>
 #include <NvInfer.h>
 #include <cuda_runtime.h>
+#include <nvdsinfer_context.h>
 
 using namespace std;
 using namespace cv;
@@ -21,8 +22,6 @@ using namespace nvinfer1;
 
 class DetectNetEngine {
 public:
-
-
     DetectNetEngine(const string& modelPath, int modelWidth, int modelHeight);
     ~DetectNetEngine();
     Mat PreProcess(const Mat& img);
@@ -34,6 +33,8 @@ private:
     ICudaEngine *_engine = nullptr;
     IExecutionContext *_context = nullptr;
     cudaStream_t _stream = nullptr;
+
+    NvDsInferContextHandle _inferContext = nullptr;
 
     string _modelPath;
     int _modelWidth;

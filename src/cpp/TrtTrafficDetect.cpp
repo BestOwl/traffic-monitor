@@ -82,8 +82,8 @@ int DetectPicture(string inputPath, string modelPath, int modelWidth, int modelH
     //int k = waitKey(0); // W
 
     DetectNetEngine inferer(modelPath, modelWidth, modelHeight);
-    inferer.PreProcess(img);
-
+//    inferer.PreProcess(img);
+    inferer.DoInfer(img, 0.3);
     return 0;
 }
 
