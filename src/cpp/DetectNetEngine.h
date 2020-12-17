@@ -11,60 +11,26 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
-#include <NvInfer.h>
-#include <cuda_runtime.h>
+
+#include "Core.h"
+#include "TrtEngine.h"
 
 using namespace std;
 using namespace cv;
 using namespace nvinfer1;
 
-struct BBoxCoordinate {
-    int xMin;
-    int yMin;
-    int xMax;
-    int yMax;
-};
-
-struct DetectedObject {
-    uint8_t classId;
-    BBoxCoordinate bbox;
-    float confidence;
-};
-
-class DetectNetEngine {
+class DetectNetEngine : public TrtEngine {
 public:
-    int __Stride;
-    float __BoxNorm;
+    explicit DetectNetEngine(const string& modelPath);
+    vector<DetectedObject> DoInfer(const Mat& image, float confidenceThreshold) override;
 
-    DetectNetEngine(const string& modelPath);
-    ~DetectNetEngine();
-    vector<DetectedObject> DoInfer(const Mat& image, float confidenceThreshold);
-
-private:
-    IRuntime *_runtime = nullptr;
-    ICudaEngine *_engine = nullptr;
-    IExecutionContext *_context = nullptr;
-    cudaStream_t _stream = nullptr;
-
-    string _modelPath;
-    int _modelWidth;
-    int _modelHeight;
-    cv::Size _modelSize;
+protected:
     int _gridH;
     int _gridW;
     int _gridSize;
 
-    vector<void*> deviceBuffers;
-    vector<float*> hostOutputBuffers;
-    vector<size_t> buffersSize;
-    vector<size_t> buffersSizeBytes;
-
-    vector<Mat> PreProcess(const Mat& img);
-    vector<DetectedObject> PostProcess(float* bbox, float* cov, float confidenceThreshold, int originWidth, int originHeight);
-
-    void LoadEngine(const string& path);
-    void PrepareContext();
+    vector<Mat> PreProcess(const Mat &img) override;
+    vector<DetectedObject> PostProcess(float* bbox, float* cov, float confidenceThreshold, int originWidth, int originHeight) override;
 };
 
 

@@ -1,5 +1,5 @@
 /*
- * Created by hao on 2020/12/2.
+ * Created by hao on 2020/12/17.
  *
  * Author: Hao Su<microhaohao@gmail.com>
  */
@@ -11,7 +11,7 @@
 #include <opencv2/highgui.hpp>
 #include <filesystem>
 #include "TrtEngine.h"
-#include "DetectNetEngine.h"
+#include "SSDRes18Engine.h"
 
 using namespace std;
 using namespace chrono;
@@ -72,7 +72,7 @@ int DetectPicture(const string& inputPath, const string& modelPath)
         return 1;
     }
 
-    DetectNetEngine inferer(modelPath);
+    SSDRes18Engine inferer(modelPath, 1248, 384);
 
     auto start = system_clock::now();
     auto objects = inferer.DoInfer(img, 0.3);
@@ -104,7 +104,7 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     double fps = video.get(CAP_PROP_FPS);
     VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), fps, Size(frameWidth, frameHeight));
 
-    DetectNetEngine inferer(modelPath);
+    SSDRes18Engine inferer(modelPath, 1248, 384);
 
     cout << "Start detection!" << endl;
     double currentFps;

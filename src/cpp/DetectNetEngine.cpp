@@ -4,6 +4,7 @@
 // Some code is adapted from https://github.com/NVIDIA/retinanet-examples/blob/master/csrc/engine.cpp
 
 #include "DetectNetEngine.h"
+#include <filesystem>
 
 #define __DetectionClassNum 4
 #define __Stride 16
@@ -11,123 +12,11 @@
 #define __ModelWidth 960
 #define __ModelHeight 544
 
-class Logger : public ILogger {
-public:
-    explicit Logger(bool verbose)
-            : _verbose(verbose) {
-    }
-
-    void log(Severity severity, const char *msg) override {
-        if (_verbose || (severity != Severity::kINFO) && (severity != Severity::kVERBOSE))
-            cout << msg << endl;
-    }
-
-private:
-    bool _verbose{false};
-};
-
-DetectNetEngine::DetectNetEngine(const string& modelPath)
+DetectNetEngine::DetectNetEngine(const string& modelPath) : TrtEngine(modelPath, __ModelWidth, __ModelHeight)
 {
-    _modelPath = modelPath;
-    _modelWidth = __ModelWidth;
-    _modelHeight = __ModelHeight;
-    _modelSize = Size(_modelWidth, _modelHeight);
-
     _gridH = _modelHeight / __Stride;
     _gridW = _modelWidth / __Stride;
     _gridSize = _gridH * _gridW;
-
-    Logger logger(true);
-    this->_runtime = createInferRuntime(logger);
-    LoadEngine(modelPath);
-
-    deviceBuffers = vector<void*>();
-    hostOutputBuffers = vector<float*>();
-    buffersSize = vector<size_t>();
-    buffersSizeBytes = vector<size_t>();
-
-    PrepareContext();
-}
-
-DetectNetEngine::~DetectNetEngine()
-{
-    if (_stream)
-    {
-        cudaStreamDestroy(_stream);
-    }
-    if (_context)
-    {
-        _context->destroy();
-    }
-    if (_engine)
-    {
-        _engine->destroy();
-    }
-    if (_runtime)
-    {
-        _runtime->destroy();
-    }
-
-    for (auto p : hostOutputBuffers)
-    {
-        free(p);
-    }
-    hostOutputBuffers.clear();
-
-    for (auto p : deviceBuffers)
-    {
-        cudaFree(p);
-    }
-    deviceBuffers.clear();
-}
-
-void DetectNetEngine::LoadEngine(const string &path) {
-    ifstream file(path, ios::in | ios::binary);
-    file.seekg (0, std::ifstream::end);
-    size_t size = file.tellg();
-    file.seekg (0, std::ifstream::beg);
-
-    char *buffer = new char[size];
-    file.read(buffer, size);
-    file.close();
-
-    _engine = _runtime->deserializeCudaEngine(buffer, size, nullptr);
-
-    delete[] buffer;
-}
-
-void DetectNetEngine::PrepareContext() {
-    _context = _engine->createExecutionContext();
-    _context->setOptimizationProfile(0);
-    cudaStreamCreate(&_stream);
-
-    int bindings = _engine->getNbBindings();
-    int maxBatchSize = _engine->getMaxBatchSize();
-    cout << "bindings: " << bindings << endl;
-    cout << "maxBatchSize: " << maxBatchSize << endl;
-    for (int i = 0; i < bindings; i++)
-    {
-        Dims dim = _engine->getBindingDimensions(i);
-        size_t sz = maxBatchSize * dim.d[0] * dim.d[1] * dim.d[2];
-        void* deviceBuf;
-        cudaMalloc(&deviceBuf, sz * sizeof(float));
-
-        deviceBuffers.push_back(deviceBuf);
-        buffersSize.push_back(sz);
-        buffersSizeBytes.push_back(sz * sizeof(float));
-
-        if (_engine->bindingIsInput(i))
-        {
-            cout << "input[" << i << "]: " << sz << endl;
-        }
-        else
-        {
-            float* hostBuf = (float*) malloc(sz * sizeof(float));
-            hostOutputBuffers.push_back(hostBuf);
-
-            cout << "output[" << i << "]: " << sz << endl;
-        }
-    }
 }
 
 // Adapted from https://github.com/AlexeyAB/yolo2_light/issues/25
@@ -199,10 +88,10 @@ vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, flo
                     float x_scale = (float) originWidth / _modelWidth;
                     float y_scale = (float) originHeight / _modelHeight;
                     BBoxCoordinate b = { };
-                    b.xMin = (int) rectX1f * x_scale;
-                    b.yMin = (int) rectY1f * y_scale;
-                    b.xMax = (int) rectX2f * x_scale;
-                    b.yMax = (int) rectY2f * y_scale;
+                    b.xMin = (int) (rectX1f * x_scale);
+                    b.yMin = (int) (rectY1f * y_scale);
+                    b.xMax = (int) (rectX2f * x_scale);
+                    b.yMax = (int) (rectY2f * y_scale);
                     object.bbox = b;
 
                     objectList.push_back(object);
@@ -223,7 +112,7 @@ vector<DetectedObject> DetectNetEngine::DoInfer(const Mat& image, float confiden
     cudaMemcpyAsync(deviceBuffers[0] + per, img[1].data, per, cudaMemcpyHostToDevice, _stream);
     cudaMemcpyAsync(deviceBuffers[0] + per * 2, img[2].data, per, cudaMemcpyHostToDevice, _stream);
 
-    _context->enqueue(1, deviceBuffers.data(), _stream, nullptr);
+    _context->enqueue(1, reinterpret_cast<void **>(deviceBuffers.data()), _stream, nullptr);
 
     cudaMemcpyAsync(hostOutputBuffers[0], deviceBuffers[1], buffersSizeBytes[1], cudaMemcpyDeviceToHost, _stream);
     cudaMemcpyAsync(hostOutputBuffers[1], deviceBuffers[2], buffersSizeBytes[2], cudaMemcpyDeviceToHost, _stream);

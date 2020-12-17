@@ -49,5 +49,7 @@ if(NOT TENSORRT_FOUND)
     message(ERROR "Cannot find TensorRT library.")
 endif()
 
-add_executable(TrtTrafficDetect TrtTrafficDetect.cpp DetectNetEngine.cpp DetectNetEngine.h)
+add_executable(TrtTrafficDetect TrtTrafficDetect.cpp DetectNetEngine.cpp DetectNetEngine.h Core.h TrtEngine.cpp TrtEngine.h)
+add_executable(TrtTrafficDetectSSD TrtTrafficDetectSSD.cpp SSDRes18Engine.cpp SSDRes18Engine.h Core.h TrtEngine.cpp TrtEngine.h)
 target_link_libraries(TrtTrafficDetect ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY})
+target_link_libraries(TrtTrafficDetectSSD ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY})
