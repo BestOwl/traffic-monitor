@@ -9,8 +9,8 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
-#include <fstream>
 
+#include "Core.h"
 #include "TrtEngine.h"
 #include "SSDRes18Engine.h"
 
@@ -22,9 +22,6 @@ void PrintHelp();
 int PrintBadArguments();
 int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "");
 int DetectVideo(const string& inputPath, const string& modelPath);
-void DrawRect(Mat& img, DetectedObject obj);
-
-string classes_dict[] = { "byclce", "car", "person", "road_sign"};
 
 /**
  * Run trt inference
@@ -103,11 +100,6 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
     return 0;
 }
 
-inline bool exists_test0 (const std::string& name) {
-    ifstream f(name.c_str());
-    return f.good();
-}
-
 int DetectVideo(const string& inputPath, const string& modelPath)
 {
     if (!fileExist(inputPath))
@@ -156,28 +148,6 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     video.release();
 
     return 0;
-}
-
-void DrawRect(Mat& img, DetectedObject obj)
-{
-    Point topLeft(obj.bbox.xMin, obj.bbox.yMin);
-    Point bottomRight(obj.bbox.xMax, obj.bbox.yMax);
-    Scalar color;
-    switch (obj.classId) {
-        case 0:
-            color = Scalar(5, 250, 90);
-            break;
-        case 1:
-            color = Scalar(5, 250, 235);
-            break;
-        case 2:
-            color = Scalar(250, 250, 5);
-            break;
-        case 3:
-            color = Scalar(140, 5, 250);
-            break;
-    }
-    rectangle(img, topLeft, bottomRight, color);
 }
 
 void PrintHelp()

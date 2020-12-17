@@ -19,7 +19,7 @@ using namespace cv;
 
 void PrintHelp();
 int PrintBadArguments();
-int DetectPicture(const string& inputPath, const string& modelPath);
+int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "");
 int DetectVideo(const string& inputPath, const string& modelPath);
 
 /**
@@ -30,10 +30,11 @@ int DetectVideo(const string& inputPath, const string& modelPath);
  *  1. task_flag - 0 indicates picture; 1 indicates video
  *  2. input file path
  *  3. model TRT engine file path
+ *  4. [Optional] output label path
  */
 int main(int argc, char* argv[])
 {
-    if (argc != 4)
+    if (argc != 4 && argc != 5)
     {
         if (argc == 2)
         {
@@ -49,7 +50,12 @@ int main(int argc, char* argv[])
 
     if (strcmp("0", argv[1]) == 0)
     {
-        return DetectPicture(argv[2], argv[3]);
+        string out;
+        if (argc == 5)
+        {
+            out = argv[4];
+        }
+        return DetectPicture(argv[2], argv[3], out);
     }
     else if(strcmp("1", argv[1]) == 0)
     {
@@ -61,7 +67,7 @@ int main(int argc, char* argv[])
     }
 }
 
-int DetectPicture(const string& inputPath, const string& modelPath)
+int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath)
 {
     string image_path = samples::findFile(inputPath);
     Mat img = imread(image_path, IMREAD_COLOR);
@@ -74,17 +80,18 @@ int DetectPicture(const string& inputPath, const string& modelPath)
 
     DetectNetEngine inferer(modelPath);
 
-    auto start = system_clock::now();
     auto objects = inferer.DoInfer(img, 0.3);
+    ofstream outputFile;
+    if (!outputPath.empty())
+    {
+        outputFile.open(outputPath);
+    }
     for (auto obj : objects)
     {
-        Point topLeft(obj.bbox.xMin, obj.bbox.yMin);
-        Point bottomRight(obj.bbox.xMax, obj.bbox.yMax);
-        rectangle(img, topLeft, bottomRight, cv::Scalar(0, 255, 0));
+        DrawRect(img, obj);
+        outputFile << classes_dict[obj.classId] << " " << obj.confidence << " " << obj.bbox.xMin << " " << obj.bbox.yMin << " " << obj.bbox.xMax << " " << obj.bbox.yMax << endl;
     }
-    auto end = system_clock::now();
-    auto duration = duration_cast<nanoseconds>(end - start);
-    cout << "time: " << double(duration.count()) * nanoseconds::period::num / nanoseconds::period::den << " (sec)" << endl;
+    outputFile.close();
 
     objects.clear();
     imwrite("result.jpg", img);

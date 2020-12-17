@@ -8,6 +8,9 @@
 #include <NvInfer.h>
 #include <string>
 #include <fstream>
+#include <opencv2/core.hpp>
+
+inline std::string classes_dict[] = { "byclce", "car", "person", "road_sign"};
 
 struct BBoxCoordinate {
     int xMin;
@@ -26,5 +29,7 @@ inline bool fileExist (const std::string& name) {
     std::ifstream f(name.c_str());
     return f.good();
 }
+
+void DrawRect(cv::Mat& img, DetectedObject obj);
 
 #endif //TLT_TRAFFICDETECT_CORE_H
