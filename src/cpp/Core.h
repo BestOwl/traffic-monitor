@@ -10,7 +10,7 @@
 #include <fstream>
 #include <opencv2/core.hpp>
 
-inline std::string classes_dict[] = { "byclce", "car", "person", "road_sign"};
+inline std::string classes_dict[] = { "bicycle", "vehicle", "pedestrian", "road_sign"};
 
 struct BBoxCoordinate {
     int xMin;
