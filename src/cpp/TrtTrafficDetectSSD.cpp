@@ -14,6 +14,8 @@
 #include "TrtEngine.h"
 #include "SSDRes18Engine.h"
 
+#include <QDirIterator>
+
 using namespace std;
 using namespace chrono;
 using namespace cv;
@@ -22,6 +24,7 @@ void PrintHelp();
 int PrintBadArguments();
 int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "");
 int DetectVideo(const string& inputPath, const string& modelPath);
+int DetectFolder(const string& inputImageDir, const string& outputLabelsDir, const string& modelPath);
 
 int modelWidth = 0;
 int modelHeight = 0;
@@ -76,10 +79,36 @@ int main(int argc, char* argv[])
     {
         return DetectVideo(argv[2], argv[3]);
     }
+    else if(strcmp("2", argv[1]) == 0)
+    {
+        return DetectFolder(argv[2], argv[6], argv[3]);
+    }
     else
     {
         return PrintBadArguments();
     }
+}
+
+int DetectFolder(const string& inputImageDir, const string& outputLabelsDir, const string& modelPath)
+{
+    QDirIterator path(inputImageDir.c_str(), QDirIterator::Subdirectories);
+    int count = 0;
+    while (path.hasNext())
+    {
+        path.next();
+        count++;
+        string fileName = path.fileName().toStdString();
+        if (fileName == "." || fileName == "..")
+        {
+            continue;
+        }
+        string name = fileName.substr(0, fileName.length() - 4);
+        string outPut = outputLabelsDir + "/" + name + ".txt";
+        DetectPicture(inputImageDir + "/" + fileName, modelPath, outPut);
+        cout << "\r     " << count << endl;
+    }
+
+    return 0;
 }
 
 int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath)

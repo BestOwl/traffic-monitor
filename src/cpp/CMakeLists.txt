@@ -49,7 +49,9 @@ if(NOT TENSORRT_FOUND)
     message(ERROR "Cannot find TensorRT library.")
 endif()
 
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
+
 add_executable(TrtTrafficDetect TrtTrafficDetect.cpp DetectNetEngine.cpp DetectNetEngine.h Core.h Core.cpp TrtEngine.cpp TrtEngine.h)
 add_executable(TrtTrafficDetectSSD TrtTrafficDetectSSD.cpp SSDRes18Engine.cpp SSDRes18Engine.h Core.h Core.cpp TrtEngine.cpp TrtEngine.h)
-target_link_libraries(TrtTrafficDetect ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY})
-target_link_libraries(TrtTrafficDetectSSD ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY})
+target_link_libraries(TrtTrafficDetect ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} Qt5::Widgets)
+target_link_libraries(TrtTrafficDetectSSD ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} Qt5::Widgets)
