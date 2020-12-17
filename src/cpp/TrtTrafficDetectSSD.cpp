@@ -9,7 +9,6 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
-#include <filesystem>
 #include <fstream>
 
 #include "TrtEngine.h"
@@ -104,9 +103,14 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
     return 0;
 }
 
+inline bool exists_test0 (const std::string& name) {
+    ifstream f(name.c_str());
+    return f.good();
+}
+
 int DetectVideo(const string& inputPath, const string& modelPath)
 {
-    if (!std::filesystem::exists(inputPath))
+    if (!fileExist(inputPath))
     {
         cout << "Could not open video file: file dose not exist" << endl;
     }

@@ -6,6 +6,8 @@
 #define TLT_TRAFFICDETECT_CORE_H
 
 #include <NvInfer.h>
+#include <string>
+#include <fstream>
 
 struct BBoxCoordinate {
     int xMin;
@@ -19,5 +21,10 @@ struct DetectedObject {
     BBoxCoordinate bbox;
     float confidence;
 };
+
+inline bool fileExist (const std::string& name) {
+    std::ifstream f(name.c_str());
+    return f.good();
+}
 
 #endif //TLT_TRAFFICDETECT_CORE_H

@@ -2,7 +2,6 @@
 // Created by hao on 2020/12/17.
 //
 
-#include <filesystem>
 #include <NvInferPlugin.h>
 
 #include "TrtEngine.h"
@@ -74,7 +73,7 @@ TrtEngine::~TrtEngine()
 }
 
 void TrtEngine::LoadEngine(const string &path) {
-    if (!std::filesystem::exists(path))
+    if (!fileExist(path))
     {
         cout << "Error: Could not found engine file" << endl;
         exit(-1);
