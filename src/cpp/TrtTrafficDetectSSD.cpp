@@ -10,6 +10,8 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
 #include <filesystem>
+#include <fstream>
+
 #include "TrtEngine.h"
 #include "SSDRes18Engine.h"
 
@@ -19,8 +21,11 @@ using namespace cv;
 
 void PrintHelp();
 int PrintBadArguments();
-int DetectPicture(const string& inputPath, const string& modelPath);
+int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "");
 int DetectVideo(const string& inputPath, const string& modelPath);
+void DrawRect(Mat& img, DetectedObject obj);
+
+string classes_dict[] = { "byclce", "car", "person", "road_sign"};
 
 /**
  * Run trt inference
@@ -30,10 +35,11 @@ int DetectVideo(const string& inputPath, const string& modelPath);
  *  1. task_flag - 0 indicates picture; 1 indicates video
  *  2. input file path
  *  3. model TRT engine file path
+ *  4. [Optional] output label path
  */
 int main(int argc, char* argv[])
 {
-    if (argc != 4)
+    if (argc != 4 && argc != 5)
     {
         if (argc == 2)
         {
@@ -49,7 +55,12 @@ int main(int argc, char* argv[])
 
     if (strcmp("0", argv[1]) == 0)
     {
-        return DetectPicture(argv[2], argv[3]);
+        string out;
+        if (argc == 5)
+        {
+            out = argv[4];
+        }
+        return DetectPicture(argv[2], argv[3], out);
     }
     else if(strcmp("1", argv[1]) == 0)
     {
@@ -61,7 +72,7 @@ int main(int argc, char* argv[])
     }
 }
 
-int DetectPicture(const string& inputPath, const string& modelPath)
+int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath)
 {
     string image_path = samples::findFile(inputPath);
     Mat img = imread(image_path, IMREAD_COLOR);
@@ -74,17 +85,18 @@ int DetectPicture(const string& inputPath, const string& modelPath)
 
     SSDRes18Engine inferer(modelPath, 1248, 384);
 
-    auto start = system_clock::now();
     auto objects = inferer.DoInfer(img, 0.3);
+    ofstream outputFile;
+    if (!outputPath.empty())
+    {
+        outputFile.open(outputPath);
+    }
     for (auto obj : objects)
     {
-        Point topLeft(obj.bbox.xMin, obj.bbox.yMin);
-        Point bottomRight(obj.bbox.xMax, obj.bbox.yMax);
-        rectangle(img, topLeft, bottomRight, cv::Scalar(0, 255, 0));
+        DrawRect(img, obj);
+        outputFile << classes_dict[obj.classId] << " " << obj.confidence << " " << obj.bbox.xMin << " " << obj.bbox.yMin << " " << obj.bbox.xMax << " " << obj.bbox.yMax << endl;
     }
-    auto end = system_clock::now();
-    auto duration = duration_cast<nanoseconds>(end - start);
-    cout << "time: " << double(duration.count()) * nanoseconds::period::num / nanoseconds::period::den << " (sec)" << endl;
+    outputFile.close();
 
     objects.clear();
     imwrite("result.jpg", img);
@@ -101,39 +113,67 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     VideoCapture video(inputPath);
     double frameWidth = video.get(CAP_PROP_FRAME_WIDTH);
     double frameHeight = video.get(CAP_PROP_FRAME_HEIGHT);
-    double fps = video.get(CAP_PROP_FPS);
-    VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), fps, Size(frameWidth, frameHeight));
+    VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), 30, Size(frameWidth, frameHeight));
 
     SSDRes18Engine inferer(modelPath, 1248, 384);
 
     cout << "Start detection!" << endl;
     double currentFps;
+    double fps;
     auto totalStart = system_clock::now();
+    auto tick = totalStart;
     Mat frame;
     while (video.read(frame))
     {
-        auto start = system_clock::now();
-
         auto objects = inferer.DoInfer(frame, 0.3);
         for (auto obj : objects)
         {
-            Point topLeft(obj.bbox.xMin, obj.bbox.yMin);
-            Point bottomRight(obj.bbox.xMax, obj.bbox.yMax);
-            rectangle(frame, topLeft, bottomRight, cv::Scalar(0, 255, 0));
+            DrawRect(frame, obj);
         }
         writer.write(frame);
 
-        auto end = system_clock::now();
-        auto duration = duration_cast<nanoseconds>(end - start);
-        cout << "\r fps: " << double(duration.count()) * nanoseconds::period::num / nanoseconds::period::den * 60;
+        auto tock = system_clock::now();
+        currentFps = 1 / ((duration<float>)(tock - tick)).count();
+        if (fps == 0)
+        {
+            fps = currentFps;
+        }
+        else
+        {
+            fps = fps * 0.95 + currentFps * 0.05;
+        }
+        tick = tock;
+        cout << "\r  fps: " << fps << " " << std::flush;
     }
+    cout << endl;
     auto totalEnd = system_clock::now();
     cout << endl << "Finish!" << endl;
-    auto duration = duration_cast<microseconds>(totalEnd - totalStart);
-    cout << "Time elapsed: " << double(duration.count()) * microseconds ::period::num / microseconds::period::den * 60 << " seconds";
+    cout << "Time elapsed: " << ((duration<float>)(totalEnd - totalStart)).count() << " seconds";
     video.release();
 
     return 0;
+}
+
+void DrawRect(Mat& img, DetectedObject obj)
+{
+    Point topLeft(obj.bbox.xMin, obj.bbox.yMin);
+    Point bottomRight(obj.bbox.xMax, obj.bbox.yMax);
+    Scalar color;
+    switch (obj.classId) {
+        case 0:
+            color = Scalar(5, 250, 90);
+            break;
+        case 1:
+            color = Scalar(5, 250, 235);
+            break;
+        case 2:
+            color = Scalar(250, 250, 5);
+            break;
+        case 3:
+            color = Scalar(140, 5, 250);
+            break;
+    }
+    rectangle(img, topLeft, bottomRight, color);
 }
 
 void PrintHelp()
