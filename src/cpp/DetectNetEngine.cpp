@@ -4,7 +4,6 @@
 // Some code is adapted from https://github.com/NVIDIA/retinanet-examples/blob/master/csrc/engine.cpp
 
 #include "DetectNetEngine.h"
-#include <filesystem>
 
 #define __DetectionClassNum 4
 #define __Stride 16
@@ -42,7 +41,7 @@ vector<Mat> DetectNetEngine::PreProcess(const Mat& img) {
     return ret;
 }
 
-vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, float confidenceThreshold, int originWidth, int originHeight)
+vector<DetectedObject> DetectNetEngine::PostProcess(vector<float*> outputs, float confidenceThreshold, int originWidth, int originHeight)
 {
     std::vector<DetectedObject> objectList;
 
@@ -60,7 +59,7 @@ vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, flo
 
     for (int c = 0; c < __DetectionClassNum; c++)
     {
-        float *outputX1 = bbox + (c * 4 * _gridSize);
+        float *outputX1 = outputs[0] + (c * 4 * _gridSize);
         float *outputY1 = outputX1 + _gridSize;
         float *outputX2 = outputY1 + _gridSize;
         float *outputY2 = outputX2 + _gridSize;
@@ -70,12 +69,12 @@ vector<DetectedObject> DetectNetEngine::PostProcess(float* bbox, float* cov, flo
             for (int w = 0; w < _gridW; w++)
             {
                 int i = w + h * _gridW;
-                if (cov[c * _gridSize + i] >= confidenceThreshold)
+                if (outputs[1][c * _gridSize + i] >= confidenceThreshold)
                 {
 
                     DetectedObject object;
                     object.classId = c;
-                    object.confidence = cov[c * _gridSize + i];
+                    object.confidence = outputs[0][c * _gridSize + i];
 
                     float rectX1f, rectY1f, rectX2f, rectY2f;
 
@@ -119,5 +118,5 @@ vector<DetectedObject> DetectNetEngine::DoInfer(const Mat& image, float confiden
     cudaStreamSynchronize(_stream);
 
     img.clear();
-    return PostProcess(hostOutputBuffers[0], hostOutputBuffers[1], confidenceThreshold, image.cols, image.rows);
+    return PostProcess(hostOutputBuffers, confidenceThreshold, image.cols, image.rows);
 }
