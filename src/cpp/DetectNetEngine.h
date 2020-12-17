@@ -30,7 +30,7 @@ protected:
     int _gridSize;
 
     vector<Mat> PreProcess(const Mat &img) override;
-    vector<DetectedObject> PostProcess(float* bbox, float* cov, float confidenceThreshold, int originWidth, int originHeight) override;
+    vector<DetectedObject> PostProcess(vector<float*> outputs, float confidenceThreshold, int originWidth, int originHeight) override;
 };
 
 
