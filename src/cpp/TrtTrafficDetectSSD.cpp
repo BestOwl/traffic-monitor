@@ -23,6 +23,9 @@ int PrintBadArguments();
 int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "");
 int DetectVideo(const string& inputPath, const string& modelPath);
 
+int modelWidth = 0;
+int modelHeight = 0;
+
 /**
  * Run trt inference
  *
@@ -31,11 +34,13 @@ int DetectVideo(const string& inputPath, const string& modelPath);
  *  1. task_flag - 0 indicates picture; 1 indicates video
  *  2. input file path
  *  3. model TRT engine file path
- *  4. [Optional] output label path
+ *  4. model width
+ *  5. model height
+ *  6. [Optional] output label path
  */
 int main(int argc, char* argv[])
 {
-    if (argc != 4 && argc != 5)
+    if (argc != 6 && argc != 7)
     {
         if (argc == 2)
         {
@@ -49,12 +54,21 @@ int main(int argc, char* argv[])
         return PrintBadArguments();
     }
 
+    try
+    {
+        modelWidth = stoi(argv[4], nullptr);
+        modelHeight = stoi(argv[5], nullptr);
+    }
+    catch (std::invalid_argument &e) {
+        return PrintBadArguments();
+    }
+
     if (strcmp("0", argv[1]) == 0)
     {
         string out;
-        if (argc == 5)
+        if (argc == 7)
         {
-            out = argv[4];
+            out = argv[6];
         }
         return DetectPicture(argv[2], argv[3], out);
     }
@@ -79,7 +93,7 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
         return 1;
     }
 
-    SSDRes18Engine inferer(modelPath, 1248, 384);
+    SSDRes18Engine inferer(modelPath, modelWidth, modelHeight);
 
     auto objects = inferer.DoInfer(img, 0.3);
     ofstream outputFile;
@@ -111,7 +125,7 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     double frameHeight = video.get(CAP_PROP_FRAME_HEIGHT);
     VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), 30, Size(frameWidth, frameHeight));
 
-    SSDRes18Engine inferer(modelPath, 1248, 384);
+    SSDRes18Engine inferer(modelPath, modelWidth, modelHeight);
 
     cout << "Start detection!" << endl;
     double currentFps;
