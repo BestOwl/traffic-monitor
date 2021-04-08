@@ -2,8 +2,8 @@
 // Created by hao on 2020/12/17.
 //
 
-#ifndef TLT_TRAFFICDETECT_CORE_H
-#define TLT_TRAFFICDETECT_CORE_H
+#ifndef TRAFFICDETECT_CORE_H
+#define TRAFFICDETECT_CORE_H
 
 #include <NvInfer.h>
 #include <string>
@@ -32,4 +32,4 @@ inline bool fileExist (const std::string& name) {
 
 void DrawRect(cv::Mat& img, DetectedObject obj);
 
-#endif //TLT_TRAFFICDETECT_CORE_H
+#endif //TRAFFICDETECT_CORE_H
