@@ -169,9 +169,9 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     }
     auto totalEnd = system_clock::now();
     cout << endl << "Finish!" << endl;
-    auto duration = duration_cast<milliseconds>(totalEnd - totalStart);
-    cout << "Time elapsed: " << duration.count() * milliseconds::period::num / milliseconds::period::den << " seconds";
-    cout << "Average FPS : " << totalFrame / (duration.count() * milliseconds::period::num / milliseconds::period::den) << endl;
+    auto duration = duration_cast<seconds>(totalEnd - totalStart);
+    cout << "Time elapsed: " << duration.count() << " seconds";
+    cout << "Average FPS : " << totalFrame / duration.count() << endl;
     video.release();
 
     return 0;
