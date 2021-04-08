@@ -1,0 +1,3 @@
+[submodule "tensorrtx"]
+	path = tensorrtx
+	url = git@github.com:Skiing2021/tensorrtx.git
