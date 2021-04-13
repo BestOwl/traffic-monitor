@@ -12,15 +12,19 @@
 #include "Core.h"
 #include "TrtEngine.h"
 #include "Yolo5Engine.h"
+#include <queue>
+#include <concurrent_queue.h>
 
 using namespace std;
 using namespace chrono;
 using namespace cv;
+using namespace concurrency;
 
 void PrintHelp();
 int PrintBadArguments();
 int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "", bool outputImage = false);
 int DetectVideo(const string& inputPath, const string& modelPath);
+int DetectVideo2(const string& inputPath, const string& modelPath);
 
 /**
  * Run inference
@@ -59,7 +63,7 @@ int main(int argc, char* argv[])
     }
     else if(strcmp("1", argv[2]) == 0)
     {
-        return DetectVideo(argv[3], argv[1]);
+        return DetectVideo2(argv[3], argv[1]);
     }
     else
     {
@@ -133,6 +137,56 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
     return 0;
 }
 
+bool completed_flag = false;
+
+void enqueue(VideoCapture* capture, Yolo5Engine* engine, concurrent_queue<Mat>* frameQueue)
+{
+    Mat frame;
+    while (capture->read(frame))
+    {
+        auto start = std::chrono::system_clock::now();
+        engine->EnqueueInfer(frame);
+        frameQueue->push(frame);
+        auto end = std::chrono::system_clock::now();
+        cout << "Enqueue: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
+    }
+    completed_flag = true;
+}
+
+void dequeue(Yolo5Engine* engine, concurrent_queue<Mat>* frameQueue)
+{
+    while (!completed_flag)
+    {
+        Mat frame;
+
+        if (!frameQueue->try_pop(frame))
+        {
+            continue;
+        }
+
+        auto start = std::chrono::system_clock::now();
+
+        auto result = engine->DequeueInfer(0.3f, frame.cols, frame.rows);
+        for (Yolo::Detection obj : result)
+        {
+            rectangle(frame, get_rect(frame, obj.bbox), (0, 255, 0));
+        }
+
+
+        //        Mat display;
+        //        resize(frame, display, Size(1280, 720));
+        imshow("Test", frame);
+
+        auto end = std::chrono::system_clock::now();
+        cout << "Dequeue: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
+
+        if ((waitKey(1) & 0xFF) == 'q')
+        {
+            break;
+        }
+    }
+}
+
 int DetectVideo(const string& inputPath, const string& modelPath)
 {
     if (!fileExist(inputPath))
@@ -170,7 +224,41 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     auto totalEnd = system_clock::now();
     cout << endl << "Finish!" << endl;
     auto duration = duration_cast<seconds>(totalEnd - totalStart);
-    cout << "Time elapsed: " << duration.count() << " seconds";
+    cout << "Time elapsed: " << duration.count() << " seconds" << endl;
+    cout << "Average FPS : " << totalFrame / duration.count() << endl;
+    video.release();
+
+    return 0;
+}
+
+int DetectVideo2(const string& inputPath, const string& modelPath)
+{
+    if (!fileExist(inputPath))
+    {
+        cout << "Could not open video file: file dose not exist" << endl;
+    }
+    VideoCapture video(inputPath);
+    double frameWidth = video.get(CAP_PROP_FRAME_WIDTH);
+    double frameHeight = video.get(CAP_PROP_FRAME_HEIGHT);
+    double fps = video.get(CAP_PROP_FPS);
+    double totalFrame = video.get(CAP_PROP_FRAME_COUNT);
+
+    Yolo5Engine inferer(modelPath, Yolo::INPUT_W, Yolo::INPUT_H);
+    concurrent_queue<Mat> frame_queue;
+    cout << "Start detection!" << endl;
+    auto totalStart = system_clock::now();
+
+    thread t_en(enqueue, &video, &inferer, &frame_queue);
+    thread t_de(dequeue, &inferer, &frame_queue);
+
+    t_de.join();
+
+    //VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), fps, Size(frameWidth, frameHeight));
+
+    auto totalEnd = system_clock::now();
+    cout << endl << "Finish!" << endl;
+    auto duration = duration_cast<seconds>(totalEnd - totalStart);
+    cout << "Time elapsed: " << duration.count() << " seconds" << endl;
     cout << "Average FPS : " << totalFrame / duration.count() << endl;
     video.release();
 

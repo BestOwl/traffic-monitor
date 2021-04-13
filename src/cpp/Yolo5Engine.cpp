@@ -111,3 +111,18 @@ vector<Yolo::Detection> Yolo5Engine::DoInfer(const Mat &image, float confidenceT
 
     return PostProcess(confidenceThreshold, image.cols, image.rows);
 }
+
+void Yolo5Engine::EnqueueInfer(const Mat& image)
+{
+    PreProcess(image);
+    cudaMemcpyAsync(deviceBuffers[0], hostBuffers[0], buffersSizeInBytes[0], cudaMemcpyHostToDevice, _stream);
+    _context->enqueue(1, reinterpret_cast<void**>(deviceBuffers.data()), _stream, nullptr);
+}
+
+vector<Yolo::Detection> Yolo5Engine::DequeueInfer(float confidenceThreshold, int originWidth, int originHeight)
+{
+    cudaMemcpyAsync(hostBuffers[1], deviceBuffers[1], buffersSizeInBytes[1], cudaMemcpyDeviceToHost, _stream);
+    cudaStreamSynchronize(_stream);
+
+    return PostProcess(confidenceThreshold, originWidth, originHeight);
+}
