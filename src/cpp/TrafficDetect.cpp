@@ -13,12 +13,10 @@
 #include "TrtEngine.h"
 #include "Yolo5Engine.h"
 #include <queue>
-#include <concurrent_queue.h>
 
 using namespace std;
 using namespace chrono;
 using namespace cv;
-using namespace concurrency;
 
 void PrintHelp();
 int PrintBadArguments();
@@ -137,56 +135,6 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
     return 0;
 }
 
-bool completed_flag = false;
-
-void enqueue(VideoCapture* capture, Yolo5Engine* engine, concurrent_queue<Mat>* frameQueue)
-{
-    Mat frame;
-    while (capture->read(frame))
-    {
-        auto start = std::chrono::system_clock::now();
-        engine->EnqueueInfer(frame);
-        frameQueue->push(frame);
-        auto end = std::chrono::system_clock::now();
-        cout << "Enqueue: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
-    }
-    completed_flag = true;
-}
-
-void dequeue(Yolo5Engine* engine, concurrent_queue<Mat>* frameQueue)
-{
-    while (!completed_flag)
-    {
-        Mat frame;
-
-        if (!frameQueue->try_pop(frame))
-        {
-            continue;
-        }
-
-        auto start = std::chrono::system_clock::now();
-
-        auto result = engine->DequeueInfer(0.3f, frame.cols, frame.rows);
-        for (Yolo::Detection obj : result)
-        {
-            rectangle(frame, get_rect(frame, obj.bbox), (0, 255, 0));
-        }
-
-
-        //        Mat display;
-        //        resize(frame, display, Size(1280, 720));
-        imshow("Test", frame);
-
-        auto end = std::chrono::system_clock::now();
-        cout << "Dequeue: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
-
-        if ((waitKey(1) & 0xFF) == 'q')
-        {
-            break;
-        }
-    }
-}
-
 int DetectVideo(const string& inputPath, const string& modelPath)
 {
     if (!fileExist(inputPath))
@@ -208,18 +156,15 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     Mat frame;
     while (video.read(frame))
     {
-//        auto start = system_clock::now();
-
+        //auto start = system_clock::now();
         auto objects = inferer.DoInfer(frame, 0.3);
+        
         for (auto obj : objects)
         {
             rectangle(frame, get_rect(frame, obj.bbox), cv::Scalar(0, 255, 0));
         }
+        //auto end = system_clock::now();
         writer.write(frame);
-
-//        auto end = system_clock::now();
-//        auto duration = duration_cast<nanoseconds>(end - start);
-//        cout << "\r fps: " << double(duration.count()) * nanoseconds::period::num / nanoseconds::period::den * 60;
     }
     auto totalEnd = system_clock::now();
     cout << endl << "Finish!" << endl;
@@ -244,16 +189,39 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     double totalFrame = video.get(CAP_PROP_FRAME_COUNT);
 
     Yolo5Engine inferer(modelPath, Yolo::INPUT_W, Yolo::INPUT_H);
-    concurrent_queue<Mat> frame_queue;
+    queue<Mat> frame_queue;
     cout << "Start detection!" << endl;
     auto totalStart = system_clock::now();
 
-    thread t_en(enqueue, &video, &inferer, &frame_queue);
-    thread t_de(dequeue, &inferer, &frame_queue);
+    Mat frame;
+    if (!video.read(frame))
+    {
+        return 0;
+    }
+    inferer.PreProcess(frame);
+    inferer._context->enqueue(1, reinterpret_cast<void**>(inferer.deviceBuffers.data()), inferer._stream, nullptr);
+    while (true)
+    {
+        cudaStreamSynchronize(inferer._stream);
+        cudaMemcpyAsync(inferer.deviceBuffers[1], inferer.hostBuffers[1], inferer.buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer._stream);
+        cudaMemcpyAsync(inferer.deviceBuffers[0], inferer.hostBuffers[0], inferer.buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer._stream);
+        inferer._context->enqueue(1, reinterpret_cast<void**>(inferer.deviceBuffers.data()), inferer._stream, nullptr);
 
-    t_de.join();
+        auto result = inferer.PostProcess(0.3f, frame.cols, frame.rows);
+        for (Yolo::Detection obj : result)
+        {
+            rectangle(frame, get_rect(frame, obj.bbox), (0, 255, 0));
+        }
+        //TODO: async video write
 
-    //VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), fps, Size(frameWidth, frameHeight));
+        if (!video.read(frame))
+        {
+            break;
+        }
+        inferer.PreProcess(frame);
+    }
+    cudaMemcpyAsync(inferer.deviceBuffers[1], inferer.hostBuffers[1], inferer.buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer._stream);
+    cudaStreamSynchronize(inferer._stream);
 
     auto totalEnd = system_clock::now();
     cout << endl << "Finish!" << endl;

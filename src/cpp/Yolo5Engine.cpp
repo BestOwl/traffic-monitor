@@ -15,6 +15,7 @@ Yolo5Engine::Yolo5Engine(const string &modelPath, int modelWidth, int modelHeigh
 }
 
 void Yolo5Engine::PreProcess(const Mat &img) {
+    auto start = std::chrono::system_clock::now();
     // letter box resize
     int w, h, x, y;
     float r_w = Yolo::INPUT_W / (img.cols*1.0);
@@ -46,6 +47,8 @@ void Yolo5Engine::PreProcess(const Mat &img) {
             ++i;
         }
     }
+    auto end = std::chrono::system_clock::now();
+    cout << "Pre-process: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
 }
 
 float iou(float lbox[4], float rbox[4]) {
@@ -96,33 +99,25 @@ void nms(std::vector<Yolo::Detection>& res, float *output, float conf_thresh, fl
 
 vector<Yolo::Detection>
 Yolo5Engine::PostProcess(float confidenceThreshold, int originWidth, int originHeight) {
+    auto start = std::chrono::system_clock::now();
     std::vector<Yolo::Detection> res;
     nms(res, hostBuffers[1], confidenceThreshold, 0.45);
+    auto end = std::chrono::system_clock::now();
+    cout << "Post-process: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
     return res;
 }
 
 vector<Yolo::Detection> Yolo5Engine::DoInfer(const Mat &image, float confidenceThreshold) {
     PreProcess(image);
 
+    auto start = chrono::system_clock::now();
     cudaMemcpyAsync(deviceBuffers[0], hostBuffers[0], buffersSizeInBytes[0], cudaMemcpyHostToDevice, _stream);
     _context->enqueue(1, reinterpret_cast<void **>(deviceBuffers.data()), _stream, nullptr);
     cudaMemcpyAsync(hostBuffers[1], deviceBuffers[1], buffersSizeInBytes[1], cudaMemcpyDeviceToHost, _stream);
     cudaStreamSynchronize(_stream);
+    auto end = chrono::system_clock::now();
+    cout << "Infer: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
+
 
     return PostProcess(confidenceThreshold, image.cols, image.rows);
-}
-
-void Yolo5Engine::EnqueueInfer(const Mat& image)
-{
-    PreProcess(image);
-    cudaMemcpyAsync(deviceBuffers[0], hostBuffers[0], buffersSizeInBytes[0], cudaMemcpyHostToDevice, _stream);
-    _context->enqueue(1, reinterpret_cast<void**>(deviceBuffers.data()), _stream, nullptr);
-}
-
-vector<Yolo::Detection> Yolo5Engine::DequeueInfer(float confidenceThreshold, int originWidth, int originHeight)
-{
-    cudaMemcpyAsync(hostBuffers[1], deviceBuffers[1], buffersSizeInBytes[1], cudaMemcpyDeviceToHost, _stream);
-    cudaStreamSynchronize(_stream);
-
-    return PostProcess(confidenceThreshold, originWidth, originHeight);
 }

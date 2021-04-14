@@ -37,17 +37,17 @@ public:
     int _modelHeight;
     cv::Size _modelSize;
 
-    cudaStream_t _stream = nullptr;
-
-protected:
-    IRuntime *_runtime = nullptr;
-    ICudaEngine *_engine = nullptr;
-    IExecutionContext *_context = nullptr;
-
     vector<char*> deviceBuffers;
     vector<float*> hostBuffers;
     vector<size_t> buffersSize;
     vector<size_t> buffersSizeInBytes;
+
+    cudaStream_t _stream = nullptr;
+    IExecutionContext* _context = nullptr;
+
+protected:
+    IRuntime *_runtime = nullptr;
+    ICudaEngine *_engine = nullptr;
 
     void LoadEngine(const string& path);
     void PrepareContext();

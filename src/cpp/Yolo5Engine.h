@@ -15,12 +15,7 @@ public:
 
     Yolo5Engine(const string &modelPath, int modelWidth, int modelHeight, float nmsThreshold = DEFAULT_NMS_THRESHOLD);
     vector<Yolo::Detection> DoInfer(const Mat& image, float confidenceThreshold) override;
-
-    void EnqueueInfer(const Mat& image);
-    vector<Yolo::Detection> DequeueInfer(float confidenceThreshold, int originWidth, int originHeight);
-
-protected:
-    void PreProcess(const Mat &img) override;
+    void PreProcess(const Mat& img) override;
     vector<Yolo::Detection> PostProcess(float confidenceThreshold, int originWidth, int originHeight) override;
 
 private:
