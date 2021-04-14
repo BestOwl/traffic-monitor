@@ -3,6 +3,8 @@ tfrecords/
 infer_result/
 build/
 .vscode/
+.vs/
+out/
 .idea/
 cmake-build-debug/
 cmake-build*/
