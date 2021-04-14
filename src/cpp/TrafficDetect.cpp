@@ -267,7 +267,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
 
 void PrintHelp()
 {
-    cout << "#zone<越站越勇> TrafficDetect 2.0" << endl;
+    cout << "#zone<越战越勇> TrafficDetect 2.0" << endl;
     cout << "Usage: TrafficDetect <task_flag> <input_file> <engine_file>" << endl;
     cout << "    engine_file: path to model TensorRT engine file" << endl;
     cout << "    task_flag: 0 indicates picture, 1 indicates video" << endl;

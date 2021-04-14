@@ -17,3 +17,4 @@ src/python/result*
 *.mp4
 *.engine
 .ipynb_checkpoints/
+*.engine
