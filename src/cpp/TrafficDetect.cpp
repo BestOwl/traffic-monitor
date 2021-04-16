@@ -13,16 +13,24 @@
 #include "TrtEngine.h"
 #include "Yolo5Engine.h"
 #include <queue>
+#include <sstream>
+#include <filesystem>
 
 using namespace std;
 using namespace chrono;
 using namespace cv;
+namespace fs = std::filesystem;
+using std::filesystem::exists;
+using std::filesystem::is_directory;
+using std::filesystem::is_regular_file;
 
 void PrintHelp();
 int PrintBadArguments();
 int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "", bool outputImage = false);
 int DetectVideo(const string& inputPath, const string& modelPath);
 int DetectVideo2(const string& inputPath, const string& modelPath);
+int DetectDir(const string& inputPath, const string& modelPath, const string& outputPath = "");
+Yolo5Engine inferer;
 
 /**
  * Run inference
@@ -49,19 +57,30 @@ int main(int argc, char* argv[])
 
         return PrintBadArguments();
     }
+    else {
+        inferer = Yolo5Engine(argv[3], Yolo::INPUT_W, Yolo::INPUT_H);
+    }
 
     if (strcmp("0", argv[2]) == 0) // picture mode
     {
-        string out;
+        string out="";
+        string in = argv[3];
         if (argc == 5)
         {
             out = argv[4];
+        }
+        else {
+            out = in.append("/out");
         }
         return DetectPicture(argv[3], argv[1], out);
     }
     else if(strcmp("1", argv[2]) == 0)
     {
         return DetectVideo2(argv[3], argv[1]);
+    }
+    else if (strcmp("2", argv[2]) == 0){
+
+           return DetectDir(argv[3], argv[1]);
     }
     else
     {
@@ -106,8 +125,6 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
         return 1;
     }
 
-    Yolo5Engine inferer(modelPath, Yolo::INPUT_W, Yolo::INPUT_H);
-
     auto objects = inferer.DoInfer(img, 0.3);
     ofstream outputFile;
     if (!outputPath.empty())
@@ -135,6 +152,7 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
     return 0;
 }
 
+
 int DetectVideo(const string& inputPath, const string& modelPath)
 {
     if (!fileExist(inputPath))
@@ -147,8 +165,6 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     double fps = video.get(CAP_PROP_FPS);
     double totalFrame = video.get(CAP_PROP_FRAME_COUNT);
     VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), fps, Size(frameWidth, frameHeight));
-
-    Yolo5Engine inferer(modelPath, Yolo::INPUT_W, Yolo::INPUT_H);
 
     cout << "Start detection!" << endl;
     double currentFps;
@@ -188,7 +204,6 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     double fps = video.get(CAP_PROP_FPS);
     double totalFrame = video.get(CAP_PROP_FRAME_COUNT);
 
-    Yolo5Engine inferer(modelPath, Yolo::INPUT_W, Yolo::INPUT_H);
     queue<Mat> frame_queue;
 
     Mat r_frame;
@@ -245,6 +260,22 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     video.release();
 
     return 0;
+}
+
+int DetectDir(const string& inputPath, const string& modelPath, const string& outputPath){
+    
+    path dir(inputPath);
+    if (!exists(dir)) {
+        cout << "folder does not exist" << endl;
+    }
+    else if (!is_directory(dir)) {
+        cout << "not a folder" << endl;
+    }
+    //int DetectPicture(const string & inputPath, const string & modelPath, const string & outputPath, bool outputImage)
+    fs::create_directories(dir);
+    for (auto& p : fs::directory_iterator(dir)) {
+        DetectPicture(dir.u8string() , modelPath, outputPath,false);
+    }
 }
 
 void PrintHelp()

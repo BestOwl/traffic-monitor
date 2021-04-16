@@ -9,8 +9,13 @@
 #include <string>
 #include <fstream>
 #include <opencv2/core.hpp>
+#include <iostream>
+#include <sstream>
+#include <filesystem>
 
 inline std::string classes_dict[] = { "bicycle", "vehicle", "pedestrian", "road_sign"};
+using namespace std;
+using namespace std::filesystem;
 
 struct BBoxCoordinate {
     int xMin;
