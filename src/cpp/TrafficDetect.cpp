@@ -190,14 +190,26 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
 
     Yolo5Engine inferer(modelPath, Yolo::INPUT_W, Yolo::INPUT_H);
     queue<Mat> frame_queue;
+
+    Mat r_frame;
+    auto readStart = system_clock::now();
+    while (video.read(r_frame))
+    {
+        frame_queue.push(r_frame);
+    }
+    auto readEnd = system_clock::now();
+    cout << "All frames have been read!" << endl;
+    cout << "Read time: " << duration_cast<seconds>(readEnd - readStart).count() << " seconds" << endl;
+
     cout << "Start detection!" << endl;
     auto totalStart = system_clock::now();
 
-    Mat frame;
-    if (!video.read(frame))
+    if (frame_queue.empty())
     {
         return 0;
     }
+    Mat frame = frame_queue.front();
+    frame_queue.pop();
     inferer.PreProcess(frame);
     inferer._context->enqueue(1, reinterpret_cast<void**>(inferer.deviceBuffers.data()), inferer._stream, nullptr);
     while (true)
@@ -214,10 +226,12 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
         }
         //TODO: async video write
 
-        if (!video.read(frame))
+        if (frame_queue.empty())
         {
             break;
         }
+        frame = frame_queue.front();
+        frame_queue.pop();
         inferer.PreProcess(frame);
     }
     cudaMemcpyAsync(inferer.deviceBuffers[1], inferer.hostBuffers[1], inferer.buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer._stream);

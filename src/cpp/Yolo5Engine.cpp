@@ -15,7 +15,7 @@ Yolo5Engine::Yolo5Engine(const string &modelPath, int modelWidth, int modelHeigh
 }
 
 void Yolo5Engine::PreProcess(const Mat &img) {
-    auto start = std::chrono::system_clock::now();
+    //auto start = std::chrono::system_clock::now();
     // letter box resize
     int w, h, x, y;
     float r_w = Yolo::INPUT_W / (img.cols*1.0);
@@ -47,8 +47,8 @@ void Yolo5Engine::PreProcess(const Mat &img) {
             ++i;
         }
     }
-    auto end = std::chrono::system_clock::now();
-    cout << "Pre-process: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
+    //auto end = std::chrono::system_clock::now();
+    //cout << "Pre-process: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
 }
 
 float iou(float lbox[4], float rbox[4]) {
@@ -99,11 +99,11 @@ void nms(std::vector<Yolo::Detection>& res, float *output, float conf_thresh, fl
 
 vector<Yolo::Detection>
 Yolo5Engine::PostProcess(float confidenceThreshold, int originWidth, int originHeight) {
-    auto start = std::chrono::system_clock::now();
+    //auto start = std::chrono::system_clock::now();
     std::vector<Yolo::Detection> res;
     nms(res, hostBuffers[1], confidenceThreshold, 0.45);
-    auto end = std::chrono::system_clock::now();
-    cout << "Post-process: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
+    //auto end = std::chrono::system_clock::now();
+    //cout << "Post-process: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << endl;
     return res;
 }
 
