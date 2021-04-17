@@ -16,6 +16,8 @@
 #include <sstream>
 #include <filesystem>
 
+#define _REALTIME_FPS
+
 #ifdef WIN32
 #define _PATH_SEP "\\"
 #else
@@ -237,7 +239,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
     VideoCapture video(inputPath);
     double frameWidth = video.get(CAP_PROP_FRAME_WIDTH);
     double frameHeight = video.get(CAP_PROP_FRAME_HEIGHT);
-    double fps = video.get(CAP_PROP_FPS);
+    double video_fps = video.get(CAP_PROP_FPS);
     double totalFrame = video.get(CAP_PROP_FRAME_COUNT);
 
     queue<Mat> frame_queue;
@@ -252,10 +254,17 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
     }
     auto readEnd = system_clock::now();
     cout << "All frames have been read!" << endl;
-    cout << "Read time: " << duration_cast<seconds>(readEnd - readStart).count() << " seconds" << endl;
+    cout << "Read time: " << duration_cast<milliseconds>(readEnd - readStart).count() / 1000.0f << " seconds" << endl;
 
     cout << "Start detection!" << endl;
     auto totalStart = system_clock::now();
+
+#ifdef _REALTIME_FPS
+    double fps = 0.0;
+    auto tic = totalStart;
+    system_clock::time_point toc;
+    double current_fps;
+#endif // _REALTIME_FPS
 
     if (frame_queue.empty())
     {
@@ -287,27 +296,45 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
         frame = frame_queue.front();
         frame_queue.pop();
         inferer->PreProcess(frame);
+#ifdef _REALTIME_FPS
+        toc = system_clock::now();
+        current_fps = 1.0f / ((duration_cast<milliseconds>(toc - tic)).count() / 1000.0f);
+        if (fps == 0.0)
+        {
+            fps = current_fps;
+        }
+        else
+        {
+            fps = fps * 0.95 + current_fps * 0.05;
+        }
+        tic = toc;
+        printf("\rfps: %f", fps);
+#endif // _REALTIME_FPS
     }
     cudaMemcpyAsync(inferer->hostBuffers[1], inferer->deviceBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
     cudaStreamSynchronize(inferer->_stream);
 
+    cout << endl;
     auto totalEnd = system_clock::now();
     cout << endl << "Finish!" << endl;
-    auto duration = duration_cast<seconds>(totalEnd - totalStart);
-    cout << "Time elapsed: " << duration.count() << " seconds" << endl;
-    cout << "Average FPS : " << totalFrame / duration.count() << endl;
+    double totalTime = duration_cast<milliseconds>(totalEnd - totalStart).count() / 1000.0f;
+    cout << "Time elapsed: " << totalTime << " seconds" << endl;
+#ifndef _REALTIME_FPS
+    cout << "Total frames: " << totalFrame << endl;
+    cout << "Average FPS : " << totalFrame / totalTime << endl;
+#endif // !_REALTIME_FPS
     video.release();
 
     cout << "Writing inference result to video files" << endl;
     auto writeStart = system_clock::now();
-    VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), fps, Size(frameWidth, frameHeight));
+    VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), video_fps, Size(frameWidth, frameHeight));
     while (!output_frame_queue.empty())
     {
         writer.write(output_frame_queue.front());
         output_frame_queue.pop();
     }
     auto writeEnd = system_clock::now();
-    cout << "Write time: " << duration_cast<seconds>(writeEnd - writeStart).count() << " seconds" << endl;
+    cout << "Write time: " << duration_cast<milliseconds>(writeEnd - writeStart).count() / 1000.0f << " seconds" << endl;
 
     return 0;
 }
