@@ -259,8 +259,8 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     while (true)
     {
         cudaStreamSynchronize(inferer->_stream);
-        cudaMemcpyAsync(inferer->deviceBuffers[1], inferer->hostBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
-        cudaMemcpyAsync(inferer->hostBuffers[0], inferer->deviceBuffers[0], inferer->buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer->_stream);
+        cudaMemcpyAsync(inferer->hostBuffers[1], inferer->deviceBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
+        cudaMemcpyAsync(inferer->deviceBuffers[0], inferer->hostBuffers[0], inferer->buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer->_stream);
         inferer->_context->enqueue(1, reinterpret_cast<void**>(inferer->deviceBuffers.data()), inferer->_stream, nullptr);
 
         auto result = inferer->PostProcess(0.3f, frame.cols, frame.rows);
@@ -279,7 +279,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
         frame_queue.pop();
         inferer->PreProcess(frame);
     }
-    cudaMemcpyAsync(inferer->deviceBuffers[1], inferer->hostBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
+    cudaMemcpyAsync(inferer->hostBuffers[1], inferer->deviceBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
     cudaStreamSynchronize(inferer->_stream);
 
     auto totalEnd = system_clock::now();
