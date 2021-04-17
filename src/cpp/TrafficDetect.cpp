@@ -241,7 +241,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
     double frameHeight = video.get(CAP_PROP_FRAME_HEIGHT);
     double video_fps = video.get(CAP_PROP_FPS);
     double totalFrame = video.get(CAP_PROP_FRAME_COUNT);
-
+    int selectedClassId = static_cast<int>(selectedLabel);
     queue<Mat> frame_queue;
     queue<Mat> output_frame_queue;
 
@@ -282,8 +282,10 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
         inferer->_context->enqueue(1, reinterpret_cast<void**>(inferer->deviceBuffers.data()), inferer->_stream, nullptr);
 
         auto result = inferer->PostProcess(0.3f, frame.cols, frame.rows);
+
         for (Yolo::Detection obj : result)
-        {
+        {   
+            if (selectedClassId!=4&&obj.class_id!= selectedClassId) continue;
             rectangle(frame, get_rect(frame, obj.bbox), (0, 255, 0));
         }
         //TODO: async video write
