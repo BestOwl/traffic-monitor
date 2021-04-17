@@ -33,6 +33,7 @@ using fs::is_regular_file;
 
 void PrintHelp();
 int PrintBadArguments();
+string PrepareOutputDir(const string& sourcePath, char* argv[]);
 int DetectPicture(const string& inputPath, const string& outputPath = "", bool outputImage = false);
 int DetectVideo(const string& inputPath, const string& modelPath);
 int DetectVideo2(const string& inputPath, const string& modelPath);
@@ -68,37 +69,48 @@ int main(int argc, char* argv[])
     inferer = &engine;
     cout << inferer->_modelPath << endl;
 
-    string out = "";
-    string in = argv[3];
-    if (argc == 5)
-    {
-        out = argv[4];
-    }
-    else {
-        stringstream ss;
-        ss << in << _PATH_SEP << "out";
-        out = ss.str();
-
-        path p(out);
-        if (!exists(p))
-        {
-            fs::create_directories(p);
-        }
-    }
     if (strcmp("0", argv[2]) == 0) // picture mode
     {
-        return DetectPicture(argv[3], out);
+        return DetectPicture(argv[3], PrepareOutputDir(argc, argv));
     }
     else if(strcmp("1", argv[2]) == 0)
     {
         return DetectVideo2(argv[3], argv[1]);
     }
-    else if (strcmp("2", argv[2]) == 0){
-           return DetectDir(argv[3], out);
+    else if (strcmp("2", argv[2]) == 0) {
+        return DetectDir(argv[3], PrepareOutputDir(argc, argv));
     }
     else
     {
         return PrintBadArguments();
+    }
+}
+
+string PrepareOutputDir(int argc, char* argv[])
+{
+    if (argc == 5)
+    {
+        path p(argv[4]);
+        if (!exists(p))
+        {
+            fs::create_directories(p);
+        }
+
+        return argv[4];
+    }
+    else
+    {
+        stringstream ss;
+        ss << argv[3] << _PATH_SEP << "out";
+        string ret = ss.str();
+
+        path p(ret);
+        if (!exists(p))
+        {
+            fs::create_directories(p);
+        }
+
+        return ret;
     }
 }
 
