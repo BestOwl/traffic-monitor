@@ -35,6 +35,9 @@ inline bool fileExist (const std::string& name) {
     return f.good();
 }
 
+enum class Label {ROAD_SIGN, VEHICLE, PEDESTRIAN, BICYCLE, ALL};
+enum class DetectMode {IMAGE_MODE, VIDEO_MODE, DIRECTORY_MODE};
+
 void DrawRect(cv::Mat& img, DetectedObject obj);
 
 #endif //TRAFFICDETECT_CORE_H

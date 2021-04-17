@@ -36,7 +36,7 @@ int PrintBadArguments();
 string PrepareOutputDir(int argc, char* argv[]);
 int DetectPicture(const string& inputPath, const string& outputPath = "", bool outputImage = false);
 int DetectVideo(const string& inputPath, const string& modelPath);
-int DetectVideo2(const string& inputPath, const string& modelPath);
+int DetectVideo2(const string& inputPath, const string& modelPath, const Label selectedLabel);
 int DetectDir(const string& inputPath, const string& outputPath = "");
 Yolo5Engine* inferer = nullptr;
 
@@ -62,26 +62,39 @@ int main(int argc, char* argv[])
                 return 0;
             }
         }
-
         return PrintBadArguments();
     }
     Yolo5Engine engine(argv[1], Yolo::INPUT_W, Yolo::INPUT_H);
     inferer = &engine;
-
-    if (strcmp("0", argv[2]) == 0) // picture mode
+    stringstream ss;
+    ss << argv[2];
+    int modeCode;
+    ss >> modeCode;
+    DetectMode detectMode = DetectMode(modeCode);
+    Label label;
+    switch (detectMode)
     {
+    case DetectMode::IMAGE_MODE:
         return DetectPicture(argv[3], PrepareOutputDir(argc, argv));
-    }
-    else if(strcmp("1", argv[2]) == 0)
-    {
-        return DetectVideo2(argv[3], argv[1]);
-    }
-    else if (strcmp("2", argv[2]) == 0) {
+        break;
+    case DetectMode::VIDEO_MODE:
+        int i;
+        label = Label::ALL;
+        if (argc == 5)
+        {
+            ss.clear();
+            ss << argv[4];
+            ss >> i;
+            label = Label(i);
+        }
+        return DetectVideo2(argv[3], argv[1], label);
+        break;
+    case DetectMode::DIRECTORY_MODE:
         return DetectDir(argv[3], PrepareOutputDir(argc, argv));
-    }
-    else
-    {
+        break;
+    default:
         return PrintBadArguments();
+        break;
     }
 }
 
@@ -94,7 +107,6 @@ string PrepareOutputDir(int argc, char* argv[])
         {
             fs::create_directories(p);
         }
-
         return argv[4];
     }
     else
@@ -108,7 +120,6 @@ string PrepareOutputDir(int argc, char* argv[])
         {
             fs::create_directories(p);
         }
-
         return ret;
     }
 }
@@ -217,7 +228,7 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     return 0;
 }
 
-int DetectVideo2(const string& inputPath, const string& modelPath)
+int DetectVideo2(const string& inputPath, const string& modelPath, Label selectedLabel)
 {
     if (!fileExist(inputPath))
     {
