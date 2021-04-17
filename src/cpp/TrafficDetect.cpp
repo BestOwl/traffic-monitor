@@ -207,7 +207,9 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     double totalFrame = video.get(CAP_PROP_FRAME_COUNT);
 
     queue<Mat> frame_queue;
+    queue<Mat> output_frame_queue;
 
+    cout << "Loading video frames to memory..." << endl;
     Mat r_frame;
     auto readStart = system_clock::now();
     while (video.read(r_frame))
@@ -233,7 +235,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     {
         cudaStreamSynchronize(inferer._stream);
         cudaMemcpyAsync(inferer.deviceBuffers[1], inferer.hostBuffers[1], inferer.buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer._stream);
-        cudaMemcpyAsync(inferer.deviceBuffers[0], inferer.hostBuffers[0], inferer.buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer._stream);
+        cudaMemcpyAsync(inferer.hostBuffers[0], inferer.deviceBuffers[0], inferer.buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer._stream);
         inferer._context->enqueue(1, reinterpret_cast<void**>(inferer.deviceBuffers.data()), inferer._stream, nullptr);
 
         auto result = inferer.PostProcess(0.3f, frame.cols, frame.rows);
@@ -242,6 +244,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
             rectangle(frame, get_rect(frame, obj.bbox), (0, 255, 0));
         }
         //TODO: async video write
+        output_frame_queue.push(frame);
 
         if (frame_queue.empty())
         {
@@ -260,6 +263,17 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     cout << "Time elapsed: " << duration.count() << " seconds" << endl;
     cout << "Average FPS : " << totalFrame / duration.count() << endl;
     video.release();
+
+    cout << "Writing inference result to video files" << endl;
+    auto writeStart = system_clock::now();
+    VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), fps, Size(frameWidth, frameHeight));
+    while (!output_frame_queue.empty())
+    {
+        writer.write(output_frame_queue.front());
+        output_frame_queue.pop();
+    }
+    auto writeEnd = system_clock::now();
+    cout << "Write time: " << duration_cast<seconds>(writeEnd - writeStart).count() << " seconds" << endl;
 
     return 0;
 }
