@@ -33,7 +33,7 @@ using fs::is_regular_file;
 
 void PrintHelp();
 int PrintBadArguments();
-string PrepareOutputDir(const string& sourcePath, char* argv[]);
+string PrepareOutputDir(int argc, char* argv[]);
 int DetectPicture(const string& inputPath, const string& outputPath = "", bool outputImage = false);
 int DetectVideo(const string& inputPath, const string& modelPath);
 int DetectVideo2(const string& inputPath, const string& modelPath);
@@ -67,7 +67,6 @@ int main(int argc, char* argv[])
     }
     Yolo5Engine engine(argv[1], Yolo::INPUT_W, Yolo::INPUT_H);
     inferer = &engine;
-    cout << inferer->_modelPath << endl;
 
     if (strcmp("0", argv[2]) == 0) // picture mode
     {
@@ -150,7 +149,6 @@ int DetectPicture(const string& inputPath, const string& outputPath, bool output
         return 1;
     }
 
-    cout << inferer->_modelPath << endl;
     auto objects = inferer->DoInfer(img, 0.3);
     ofstream outputFile;
     if (!outputPath.empty())
@@ -303,8 +301,9 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     return 0;
 }
 
-int DetectDir(const string& inputPath, const string& outputPath){
-    
+int DetectDir(const string& inputPath, const string& outputPath)
+{
+    cout << "Start detection!" << endl;
     path dir(inputPath);
     if (!exists(dir)) {
         cout << "folder does not exist" << endl;
@@ -323,7 +322,7 @@ int DetectDir(const string& inputPath, const string& outputPath){
         outLabel = outLabel.substr(0, outLabel.find_last_of('.')) + ".txt";
         DetectPicture(p.path().string(), outLabel, false);
     }
-
+    cout << "Completed!" << endl;
     return 0;
 }
 

@@ -109,15 +109,17 @@ Yolo5Engine::PostProcess(float confidenceThreshold, int originWidth, int originH
 
 vector<Yolo::Detection> Yolo5Engine::DoInfer(const Mat &image, float confidenceThreshold) {
     PreProcess(image);
-
+#if _DEBUG
     auto start = chrono::system_clock::now();
+#endif;
     cudaMemcpyAsync(deviceBuffers[0], hostBuffers[0], buffersSizeInBytes[0], cudaMemcpyHostToDevice, _stream);
     _context->enqueue(1, reinterpret_cast<void **>(deviceBuffers.data()), _stream, nullptr);
     cudaMemcpyAsync(hostBuffers[1], deviceBuffers[1], buffersSizeInBytes[1], cudaMemcpyDeviceToHost, _stream);
     cudaStreamSynchronize(_stream);
+#if _DEBUG
     auto end = chrono::system_clock::now();
     cout << "Infer: " << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
-
+#endif
 
     return PostProcess(confidenceThreshold, image.cols, image.rows);
 }
