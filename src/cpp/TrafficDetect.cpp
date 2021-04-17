@@ -20,9 +20,10 @@ using namespace std;
 using namespace chrono;
 using namespace cv;
 namespace fs = std::filesystem;
-using std::filesystem::exists;
-using std::filesystem::is_directory;
-using std::filesystem::is_regular_file;
+using fs::path;
+using fs::exists;
+using fs::is_directory;
+using fs::is_regular_file;
 
 void PrintHelp();
 int PrintBadArguments();
@@ -70,7 +71,7 @@ int main(int argc, char* argv[])
             out = argv[4];
         }
         else {
-            out = in.append("/out");
+            out = in.append(path::preferred_separator+"out");
         }
         return DetectPicture(argv[3], argv[1], out);
     }
@@ -155,7 +156,8 @@ int DetectPicture(const string& inputPath, const string& modelPath, const string
 
 int DetectVideo(const string& inputPath, const string& modelPath)
 {
-    if (!fileExist(inputPath))
+    path input(inputPath);
+    if (!exists(input))
     {
         cout << "Could not open video file: file dose not exist" << endl;
     }
@@ -274,7 +276,7 @@ int DetectDir(const string& inputPath, const string& modelPath, const string& ou
     //int DetectPicture(const string & inputPath, const string & modelPath, const string & outputPath, bool outputImage)
     fs::create_directories(dir);
     for (auto& p : fs::directory_iterator(dir)) {
-        DetectPicture(dir.u8string() , modelPath, outputPath,false);
+        DetectPicture(p.path().u8string() , modelPath, outputPath,false);
     }
 }
 
