@@ -16,6 +16,12 @@
 #include <sstream>
 #include <filesystem>
 
+#ifdef WIN32
+#define _PATH_SEP "\\"
+#else
+#define _PATH_SEP "/"
+#endif
+
 using namespace std;
 using namespace chrono;
 using namespace cv;
@@ -27,11 +33,11 @@ using fs::is_regular_file;
 
 void PrintHelp();
 int PrintBadArguments();
-int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath = "", bool outputImage = false);
+int DetectPicture(const string& inputPath, const string& outputPath = "", bool outputImage = false);
 int DetectVideo(const string& inputPath, const string& modelPath);
 int DetectVideo2(const string& inputPath, const string& modelPath);
-int DetectDir(const string& inputPath, const string& modelPath, const string& outputPath = "");
-Yolo5Engine inferer;
+int DetectDir(const string& inputPath, const string& outputPath = "");
+Yolo5Engine* inferer = nullptr;
 
 /**
  * Run inference
@@ -58,30 +64,37 @@ int main(int argc, char* argv[])
 
         return PrintBadArguments();
     }
-    else {
-        inferer = Yolo5Engine(argv[3], Yolo::INPUT_W, Yolo::INPUT_H);
-    }
+    Yolo5Engine engine(argv[1], Yolo::INPUT_W, Yolo::INPUT_H);
+    inferer = &engine;
+    cout << inferer->_modelPath << endl;
 
+    string out = "";
+    string in = argv[3];
+    if (argc == 5)
+    {
+        out = argv[4];
+    }
+    else {
+        stringstream ss;
+        ss << in << _PATH_SEP << "out";
+        out = ss.str();
+
+        path p(out);
+        if (!exists(p))
+        {
+            fs::create_directories(p);
+        }
+    }
     if (strcmp("0", argv[2]) == 0) // picture mode
     {
-        string out="";
-        string in = argv[3];
-        if (argc == 5)
-        {
-            out = argv[4];
-        }
-        else {
-            out = in.append(path::preferred_separator+"out");
-        }
-        return DetectPicture(argv[3], argv[1], out);
+        return DetectPicture(argv[3], out);
     }
     else if(strcmp("1", argv[2]) == 0)
     {
         return DetectVideo2(argv[3], argv[1]);
     }
     else if (strcmp("2", argv[2]) == 0){
-
-           return DetectDir(argv[3], argv[1]);
+           return DetectDir(argv[3], out);
     }
     else
     {
@@ -115,18 +128,18 @@ cv::Rect get_rect(cv::Mat& img, float bbox[4]) {
     return cv::Rect(l, t, r - l, b - t);
 }
 
-int DetectPicture(const string& inputPath, const string& modelPath, const string& outputPath, bool outputImage)
+int DetectPicture(const string& inputPath, const string& outputPath, bool outputImage)
 {
-    string image_path = samples::findFile(inputPath);
-    Mat img = imread(image_path, IMREAD_COLOR);
+    Mat img = imread(inputPath, IMREAD_COLOR);
 
     if(img.empty())
     {
-        std::cout << "Could not read the image: " << image_path << std::endl;
+        std::cout << "Could not read the image: " << inputPath << std::endl;
         return 1;
     }
 
-    auto objects = inferer.DoInfer(img, 0.3);
+    cout << inferer->_modelPath << endl;
+    auto objects = inferer->DoInfer(img, 0.3);
     ofstream outputFile;
     if (!outputPath.empty())
     {
@@ -175,7 +188,7 @@ int DetectVideo(const string& inputPath, const string& modelPath)
     while (video.read(frame))
     {
         //auto start = system_clock::now();
-        auto objects = inferer.DoInfer(frame, 0.3);
+        auto objects = inferer->DoInfer(frame, 0.3);
         
         for (auto obj : objects)
         {
@@ -229,16 +242,16 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     }
     Mat frame = frame_queue.front();
     frame_queue.pop();
-    inferer.PreProcess(frame);
-    inferer._context->enqueue(1, reinterpret_cast<void**>(inferer.deviceBuffers.data()), inferer._stream, nullptr);
+    inferer->PreProcess(frame);
+    inferer->_context->enqueue(1, reinterpret_cast<void**>(inferer->deviceBuffers.data()), inferer->_stream, nullptr);
     while (true)
     {
-        cudaStreamSynchronize(inferer._stream);
-        cudaMemcpyAsync(inferer.deviceBuffers[1], inferer.hostBuffers[1], inferer.buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer._stream);
-        cudaMemcpyAsync(inferer.hostBuffers[0], inferer.deviceBuffers[0], inferer.buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer._stream);
-        inferer._context->enqueue(1, reinterpret_cast<void**>(inferer.deviceBuffers.data()), inferer._stream, nullptr);
+        cudaStreamSynchronize(inferer->_stream);
+        cudaMemcpyAsync(inferer->deviceBuffers[1], inferer->hostBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
+        cudaMemcpyAsync(inferer->hostBuffers[0], inferer->deviceBuffers[0], inferer->buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer->_stream);
+        inferer->_context->enqueue(1, reinterpret_cast<void**>(inferer->deviceBuffers.data()), inferer->_stream, nullptr);
 
-        auto result = inferer.PostProcess(0.3f, frame.cols, frame.rows);
+        auto result = inferer->PostProcess(0.3f, frame.cols, frame.rows);
         for (Yolo::Detection obj : result)
         {
             rectangle(frame, get_rect(frame, obj.bbox), (0, 255, 0));
@@ -252,10 +265,10 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
         }
         frame = frame_queue.front();
         frame_queue.pop();
-        inferer.PreProcess(frame);
+        inferer->PreProcess(frame);
     }
-    cudaMemcpyAsync(inferer.deviceBuffers[1], inferer.hostBuffers[1], inferer.buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer._stream);
-    cudaStreamSynchronize(inferer._stream);
+    cudaMemcpyAsync(inferer->deviceBuffers[1], inferer->hostBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
+    cudaStreamSynchronize(inferer->_stream);
 
     auto totalEnd = system_clock::now();
     cout << endl << "Finish!" << endl;
@@ -278,7 +291,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath)
     return 0;
 }
 
-int DetectDir(const string& inputPath, const string& modelPath, const string& outputPath){
+int DetectDir(const string& inputPath, const string& outputPath){
     
     path dir(inputPath);
     if (!exists(dir)) {
@@ -290,8 +303,16 @@ int DetectDir(const string& inputPath, const string& modelPath, const string& ou
     //int DetectPicture(const string & inputPath, const string & modelPath, const string & outputPath, bool outputImage)
     fs::create_directories(dir);
     for (auto& p : fs::directory_iterator(dir)) {
-        DetectPicture(p.path().u8string() , modelPath, outputPath,false);
+        if (p.is_directory())
+        {
+            continue;
+        }
+        string outLabel = outputPath + _PATH_SEP + p.path().filename().string();
+        outLabel = outLabel.substr(0, outLabel.find_last_of('.')) + ".txt";
+        DetectPicture(p.path().string(), outLabel, false);
     }
+
+    return 0;
 }
 
 void PrintHelp()
