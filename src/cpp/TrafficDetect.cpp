@@ -250,7 +250,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
     auto readStart = system_clock::now();
     while (video.read(r_frame))
     {
-        frame_queue.push(r_frame);
+        frame_queue.push(r_frame.clone());
     }
     auto readEnd = system_clock::now();
     cout << "All frames have been read!" << endl;
