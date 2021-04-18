@@ -280,10 +280,11 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
         cudaStreamSynchronize(inferer->_stream);
         cudaMemcpyAsync(inferer->hostBuffers[1], inferer->deviceBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
         cudaMemcpyAsync(inferer->deviceBuffers[0], inferer->hostBuffers[0], inferer->buffersSizeInBytes[0], cudaMemcpyHostToDevice, inferer->_stream);
+        cudaStreamSynchronize(inferer->_stream);
         inferer->_context->enqueue(1, reinterpret_cast<void**>(inferer->deviceBuffers.data()), inferer->_stream, nullptr);
 
+        //TODO: avoid duplicate code
         auto result = inferer->PostProcess(0.3f, frame.cols, frame.rows);
-
         for (Yolo::Detection obj : result)
         {
             if (selectedClassId !=4.0f && obj.class_id != selectedClassId) continue;
@@ -316,6 +317,15 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
     }
     cudaMemcpyAsync(inferer->hostBuffers[1], inferer->deviceBuffers[1], inferer->buffersSizeInBytes[1], cudaMemcpyDeviceToHost, inferer->_stream);
     cudaStreamSynchronize(inferer->_stream);
+    //TODO: avoid duplicate code
+    auto result = inferer->PostProcess(0.3f, frame.cols, frame.rows);
+    for (Yolo::Detection obj : result)
+    {
+        if (selectedClassId != 4.0f && obj.class_id != selectedClassId) continue;
+        rectangle(frame, get_rect(frame, obj.bbox), color, 2);
+    }
+    //TODO: async video write
+    output_frame_queue.push(frame);
 
     cout << endl;
     auto totalEnd = system_clock::now();
@@ -330,7 +340,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
 
     cout << "Writing inference result to video files" << endl;
     auto writeStart = system_clock::now();
-    VideoWriter writer("result.mp4", VideoWriter::fourcc('M', 'P', '4', 'V'), video_fps, Size(frameWidth, frameHeight));
+    VideoWriter writer("result.mp4", VideoWriter::fourcc('X', '2', '6', '4'), video_fps, Size(frameWidth, frameHeight));
     while (!output_frame_queue.empty())
     {
         writer.write(output_frame_queue.front());
