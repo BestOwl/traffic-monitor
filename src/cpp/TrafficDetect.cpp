@@ -271,6 +271,7 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
         return 0;
     }
     Mat frame = frame_queue.front();
+    Scalar color(0, 255, 0);
     frame_queue.pop();
     inferer->PreProcess(frame);
     inferer->_context->enqueue(1, reinterpret_cast<void**>(inferer->deviceBuffers.data()), inferer->_stream, nullptr);
@@ -285,8 +286,8 @@ int DetectVideo2(const string& inputPath, const string& modelPath, Label selecte
 
         for (Yolo::Detection obj : result)
         {
-            if (selectedClassId!=4.0f&&obj.class_id!= selectedClassId) continue;
-            rectangle(frame, get_rect(frame, obj.bbox), (0, 255, 0));
+            if (selectedClassId !=4.0f && obj.class_id != selectedClassId) continue;
+            rectangle(frame, get_rect(frame, obj.bbox), color, 2);
         }
         //TODO: async video write
         output_frame_queue.push(frame);
